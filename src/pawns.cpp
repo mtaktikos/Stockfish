@@ -612,7 +612,7 @@ namespace {
 
         // Score this pawn
 #ifdef HORDE
-        if (pos.is_horde() && relative_rank(Us, s) == 0) {} else
+        if (pos.is_horde() && relative_rank(Us, s) == RANK_1) {} else
 #endif
         if (supported | phalanx)
             score += Connected[pos.variant()][opposed][bool(phalanx)][popcount(supported)][relative_rank(Us, s)];
@@ -623,11 +623,7 @@ namespace {
         else if (backward)
             score -= Backward[pos.variant()], e->weakUnopposed[Us] += !opposed;
 
-#ifdef HORDE
-        if (doubled && (!supported || pos.is_horde()))
-#else
         if (doubled && !supported)
-#endif
             score -= Doubled[pos.variant()];
     }
 
