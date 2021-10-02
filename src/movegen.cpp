@@ -483,9 +483,13 @@ namespace {
 #endif
 #ifdef RELAY
         if (V == RELAY_VARIANT)
+        {
+            if (Type == EVASIONS)
+                target = between_bb(ksq, lsb(pos.checkers()));
             for (PieceType pt = KNIGHT; pt <= KING; ++pt)
                 if (attacks_bb(pt, ksq, pos.pieces()) & pos.pieces(Us, pt))
                     b |= attacks_bb(pt, ksq, pos.pieces()) & target;
+        }
 #endif
 #ifdef LOSERS
         if (V == LOSERS_VARIANT && pos.can_capture_losers())
