@@ -22,6 +22,8 @@
 #include "endgame.h"
 #include "movegen.h"
 
+namespace Stockfish {
+
 namespace {
 
   // Used to drive the king towards the edge of the board
@@ -967,3 +969,4 @@ Value Endgame<ATOMIC_VARIANT, KQK>::operator()(const Position& pos) const {
 
 template<> Value Endgame<ATOMIC_VARIANT, KNNK>::operator()(const Position&) const { return VALUE_DRAW; }
 #endif
+} // namespace Stockfish

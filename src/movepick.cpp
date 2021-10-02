@@ -20,6 +20,8 @@
 
 #include "movepick.h"
 
+namespace Stockfish {
+
 namespace {
 
   enum Stages {
@@ -125,7 +127,7 @@ void MovePicker::score() {
                    +     (*continuationHistory[1])[pos.moved_piece(m)][to_sq(m)]
                    +     (*continuationHistory[3])[pos.moved_piece(m)][to_sq(m)]
                    +     (*continuationHistory[5])[pos.moved_piece(m)][to_sq(m)]
-                   + (ply < MAX_LPH ? std::min(4, depth / 3) * (*lowPlyHistory)[ply][from_to(m)] : 0);
+                   + (ply < MAX_LPH ? 6 * (*lowPlyHistory)[ply][from_to(m)] : 0);
 #ifdef ANTI
           if (pos.is_anti() && pos.attackers_to(to_sq(m), pos.pieces() ^ from_sq(m)) & pos.pieces(~pos.side_to_move()))
               m.value += (1 << 28);
@@ -284,3 +286,5 @@ top:
   assert(false);
   return MOVE_NONE; // Silence warning
 }
+
+} // namespace Stockfish

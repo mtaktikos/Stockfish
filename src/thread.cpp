@@ -26,6 +26,7 @@
 #include "syzygy/tbprobe.h"
 #include "tt.h"
 
+namespace Stockfish {
 #ifndef _WIN32
 void* run_idle_loop(void* thread) {
   static_cast<Thread*>(thread)->idle_loop();
@@ -150,14 +151,16 @@ void Thread::idle_loop() {
 
 void ThreadPool::set(size_t requested) {
 
-  if (size() > 0) { // destroy any existing thread(s)
+  if (size() > 0)   // destroy any existing thread(s)
+  {
       main()->wait_for_search_finished();
 
       while (size() > 0)
           delete back(), pop_back();
   }
 
-  if (requested > 0) { // create new thread(s)
+  if (requested > 0)   // create new thread(s)
+  {
       push_back(new MainThread(0));
 
       while (size() < requested)
@@ -282,3 +285,5 @@ void ThreadPool::wait_for_search_finished() const {
         if (th != front())
             th->wait_for_search_finished();
 }
+
+} // namespace Stockfish

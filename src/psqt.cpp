@@ -24,6 +24,7 @@
 #include "bitboard.h"
 #include "types.h"
 
+namespace Stockfish {
 
 namespace
 {
@@ -847,3 +848,5 @@ for (Variant var = CHESS_VARIANT; var < VARIANT_NB; ++var)
 }
 
 } // namespace PSQT
+
+} // namespace Stockfish

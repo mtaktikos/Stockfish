@@ -85,6 +85,8 @@
 #  define pext(b, m) 0
 #endif
 
+namespace Stockfish {
+
 #ifdef USE_POPCNT
 constexpr bool HasPopCnt = true;
 #else
@@ -360,6 +362,11 @@ enum Bound {
   BOUND_EXACT = BOUND_UPPER | BOUND_LOWER
 };
 
+enum ExplosionState {
+  EXPLOSION_NONE,
+  MUST_CALM_DOWN
+};
+
 enum Value : int {
   VALUE_ZERO      = 0,
   VALUE_DRAW      = 0,
@@ -458,7 +465,6 @@ enum Value : int {
   QueenValueMgTwoKings  = 2455,  QueenValueEgTwoKings  = 2846,
   KingValueMgTwoKings   = 554,   KingValueEgTwoKings   = 806,
 #endif
-  Tempo = 28,
 
   MidgameLimit  = 15258, EndgameLimit  = 3915
 };
@@ -950,6 +956,7 @@ inline Variant main_variant(Variant v) {
       return CHESS_VARIANT; // Silence a warning
   }
 }
+} // namespace Stockfish
 
 #endif // #ifndef TYPES_H_INCLUDED
 

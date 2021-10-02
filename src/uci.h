@@ -25,6 +25,8 @@
 
 #include "types.h"
 
+namespace Stockfish {
+
 class Position;
 
 namespace UCI {
@@ -80,5 +82,7 @@ Variant variant_from_name(const std::string& str);
 } // namespace UCI
 
 extern UCI::OptionsMap Options;
+
+} // namespace Stockfish
 
 #endif // #ifndef UCI_H_INCLUDED

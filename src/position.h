@@ -33,6 +33,7 @@
 #include "nnue/nnue_accumulator.h"
 #endif
 
+namespace Stockfish {
 
 /// StateInfo struct stores information needed to restore a Position object to
 /// its previous state when we retract a move. Whenever a move is made on the
@@ -55,19 +56,19 @@ struct StateInfo {
   // Not copied when making a move (will be recomputed anyhow)
   Key        key;
   Bitboard   checkersBB;
-  Piece      capturedPiece;
-#ifdef ATOMIC
-  Bitboard blastByTypeBB[PIECE_TYPE_NB];
-  Bitboard blastByColorBB[COLOR_NB];
-#endif
-#ifdef CRAZYHOUSE
-  bool       capturedpromoted;
-#endif
   StateInfo* previous;
   Bitboard   blockersForKing[COLOR_NB];
   Bitboard   pinners[COLOR_NB];
   Bitboard   checkSquares[PIECE_TYPE_NB];
+  Piece      capturedPiece;
   int        repetition;
+#ifdef ATOMIC
+  Bitboard   blastByTypeBB[PIECE_TYPE_NB];
+  Bitboard   blastByColorBB[COLOR_NB];
+#endif
+#ifdef CRAZYHOUSE
+  bool       capturedpromoted;
+#endif
 
   // Used by NNUE
 #ifdef USE_NNUE
@@ -101,7 +102,7 @@ public:
   // FEN string input/output
   Position& set(const std::string& fenStr, bool isChess960, Variant v, StateInfo* si, Thread* th);
   Position& set(const std::string& code, Color c, Variant v, StateInfo* si);
-  const std::string fen() const;
+  std::string fen() const;
 
   // Position representation
   Bitboard pieces(PieceType pt) const;
@@ -135,7 +136,6 @@ public:
   Bitboard blockers_for_king(Color c) const;
   Bitboard check_squares(PieceType pt) const;
   Bitboard pinners(Color c) const;
-  bool is_discovered_check_on_king(Color c, Move m) const;
 
   // Attacks to/from a given square
   Bitboard attackers_to(Square s) const;
@@ -156,7 +156,6 @@ public:
   bool capture(Move m) const;
   bool capture_or_promotion(Move m) const;
   bool gives_check(Move m) const;
-  bool advanced_pawn_push(Move m) const;
   Piece moved_piece(Move m) const;
   Piece captured_piece() const;
 
@@ -316,6 +315,9 @@ public:
   // Used by NNUE
   StateInfo* state() const;
 
+  void put_piece(Piece pc, Square s);
+  void remove_piece(Square s);
+
 private:
   // Initialization helpers (used while setting up a position)
   void set_castling_right(Color c, Square kfrom, Square rfrom);
@@ -323,8 +325,6 @@ private:
   void set_check_info(StateInfo* si) const;
 
   // Other helpers
-  void put_piece(Piece pc, Square s);
-  void remove_piece(Square s);
   void move_piece(Square from, Square to);
   template<bool Do>
   void do_castling(Color us, Square from, Square& to, Square& rfrom, Square& rto);
@@ -344,11 +344,11 @@ private:
 #endif
   Square castlingRookSquare[CASTLING_RIGHT_NB];
   Bitboard castlingPath[CASTLING_RIGHT_NB];
+  Thread* thisThread;
+  StateInfo* st;
   int gamePly;
   Color sideToMove;
   Score psq;
-  Thread* thisThread;
-  StateInfo* st;
   bool chess960;
   Variant var;
   Variant subvar;
@@ -584,25 +584,12 @@ inline Bitboard Position::check_squares(PieceType pt) const {
   return st->checkSquares[pt];
 }
 
-inline bool Position::is_discovered_check_on_king(Color c, Move m) const {
-#ifdef CRAZYHOUSE
-  if (is_house() && type_of(m) == DROP)
-      return false;
-#endif
-  return st->blockersForKing[c] & from_sq(m);
-}
-
 inline bool Position::pawn_passed(Color c, Square s) const {
 #ifdef HORDE
   if (is_horde() && is_horde_color(c))
       return !(pieces(~c, PAWN) & forward_file_bb(c, s));
 #endif
   return !(pieces(~c, PAWN) & passed_pawn_span(c, s));
-}
-
-inline bool Position::advanced_pawn_push(Move m) const {
-  return   type_of(moved_piece(m)) == PAWN
-        && relative_rank(sideToMove, to_sq(m)) > RANK_5;
 }
 
 inline int Position::pawns_on_same_color_squares(Color c, Square s) const {
@@ -769,7 +756,7 @@ inline bool Position::can_capture() const {
       return true;
   while (b2)
   {
-      Square s = pop_lsb(&b2);
+      Square s = pop_lsb(b2);
       if (attacks_bb(type_of(piece_on(s)), s, pieces()) & target)
           return true;
   }
@@ -814,7 +801,7 @@ inline bool Position::can_capture_losers() const {
   if (!attacks && !checkers() && !st->blockersForKing[sideToMove] && ep_square() == SQ_NONE)
       return can_capture();
   while (attacks)
-      if (!(attackers_to(pop_lsb(&attacks), pieces() ^ ksq) & pieces(~sideToMove)))
+      if (!(attackers_to(pop_lsb(attacks), pieces() ^ ksq) & pieces(~sideToMove)))
           return true;
 
   // Any non-king capture must capture the checking piece(s)
@@ -831,7 +818,7 @@ inline bool Position::can_capture_losers() const {
       while (b)
       {
           // Test en passant legality by simulating the move
-          Square from = pop_lsb(&b);
+          Square from = pop_lsb(b);
           Square capsq = ep - pawn_push(sideToMove);
           Bitboard occupied = (pieces() ^ from ^ capsq) | ep;
 
@@ -848,7 +835,7 @@ inline bool Position::can_capture_losers() const {
   Bitboard b = pieces(sideToMove) ^ ksq;
   while (b)
   {
-      Square s = pop_lsb(&b);
+      Square s = pop_lsb(b);
       PieceType pt = type_of(piece_on(s));
       attacks = pt == PAWN ? pawn_attacks_bb(sideToMove, s) : attacks_bb(pt, s, pieces());
 
@@ -980,7 +967,7 @@ inline bool Position::is_race_loss() const {
   // Check whether the black king can move to the eighth rank
   Bitboard b = attacks_bb<KING>(square<KING>(sideToMove)) & rank_bb(RANK_8) & ~pieces(sideToMove);
   while (b)
-      if (!(attackers_to(pop_lsb(&b)) & pieces(~sideToMove)))
+      if (!(attackers_to(pop_lsb(b)) & pieces(~sideToMove)))
           return false;
   return true;
 }
@@ -1203,11 +1190,7 @@ inline void Position::remove_piece(Square s) {
   byTypeBB[ALL_PIECES] ^= s;
   byTypeBB[type_of(pc)] ^= s;
   byColorBB[color_of(pc)] ^= s;
-#ifdef ATOMIC
-  if (is_atomic())
-      board[s] = NO_PIECE;
-#endif
-  /* board[s] = NO_PIECE;  Not needed, overwritten by the capturing one */
+  board[s] = NO_PIECE;
   pieceCount[pc]--;
   pieceCount[make_piece(color_of(pc), ALL_PIECES)]--;
   psq -= PSQT::psq[var][pc][s];
@@ -1248,5 +1231,7 @@ inline StateInfo* Position::state() const {
 
   return st;
 }
+
+} // namespace Stockfish
 
 #endif // #ifndef POSITION_H_INCLUDED

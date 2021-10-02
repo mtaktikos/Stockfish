@@ -1,6 +1,6 @@
 ## Overview
 
-[![Build Status](https://travis-ci.org/ddugovic/Stockfish.svg?branch=master)](https://travis-ci.org/ddugovic/Stockfish)
+[![Build Status](https://github.com/ddugovic/Stockfish/actions/workflows/stockfish.yml/badge.svg)](https://github.com/ddugovic/Stockfish/actions)
 [![Build Status](https://ci.appveyor.com/api/projects/status/github/ddugovic/Stockfish?branch=master&svg=true)](https://ci.appveyor.com/project/ddugovic/Stockfish/branch/master)
 
 Multi Variant Stockfish is a [Stockfish](https://github.com/official-stockfish/Stockfish) fork specialized to play chess and some chess [variants](https://lichess.org/variant):
@@ -22,11 +22,6 @@ Multi Variant Stockfish is a [Stockfish](https://github.com/official-stockfish/S
 
 If you are interested in playing only Chess and/or Chess960, or to play Chess and/or Chess960 at maximum strength possible, simply use Stockfish. Multi Variant Stockfish, though using the same code base for Chess and Chess960, is a bit slower. Please consider sponsoring [Fairy-Stockfish](https://github.com/ianfab/Fairy-Stockfish) which has a more robust architecture and supports a wider array of variants.
 
-Multi Variant Stockfish is currently used in these [lichess.org](https://lichess.org/) projects: 
-- [lichess.org custom Stockfish](https://github.com/niklasf/Stockfish): as engine used to play against the users on lichess.org, also running on contributed remote servers for games analysis
-- [PNaCl Stockfish](https://github.com/niklasf/stockfish.pexe): as engine running in Chrome browser for your personal games analysis
-- [stockfish.js](https://github.com/niklasf/stockfish.js): compiled to JavaScript and WebAssembly for other browsers
-
 To get more information please visit the [Multi Variant Stockfish Wiki](https://github.com/ddugovic/Stockfish/wiki)
 
 
@@ -36,8 +31,6 @@ There are precompiled [binary releases](https://github.com/ddugovic/Stockfish/re
 
 Operating System | Status | profile-build
 --- | --- | ---
-Linux | [![Travis CI](https://travis-ci.org/ddugovic/Stockfish.svg?branch=master)](https://travis-ci.org/ddugovic/Stockfish) | [x86_64](https://s3-us-west-2.amazonaws.com/variant-stockfish/ddugovic/master/stockfish-x86_64), [x86_64-modern](https://s3-us-west-2.amazonaws.com/variant-stockfish/ddugovic/master/stockfish-x86_64-modern), [x86_64-bmi2](https://s3-us-west-2.amazonaws.com/variant-stockfish/ddugovic/master/stockfish-x86_64-bmi2)
-OS X | [![Travis CI](https://travis-ci.org/ddugovic/Stockfish.svg?branch=master)](https://travis-ci.org/ddugovic/Stockfish) | [x86_64](https://s3-us-west-2.amazonaws.com/variant-stockfish/ddugovic/master/stockfish-osx-x86_64)
 Windows | [![Build status](https://ci.appveyor.com/api/projects/status/aeevqaqe30lrivka/branch/master?svg=true)](https://ci.appveyor.com/project/niklasf/stockfish-imnn1/branch/master) | [x86_64](https://s3-us-west-2.amazonaws.com/variant-stockfish/ddugovic/master/stockfish-windows-x86_64.exe), [x86_64-modern](https://s3-us-west-2.amazonaws.com/variant-stockfish/ddugovic/master/stockfish-windows-x86_64-modern.exe), [x86_64-bmi2](https://s3-us-west-2.amazonaws.com/variant-stockfish/ddugovic/master/stockfish-windows-x86_64-bmi2.exe)
 
 
@@ -61,21 +54,28 @@ intrinsics available on most CPUs (sse2, avx2, neon, or similar).
 
 This distribution of Stockfish consists of the following files:
 
-  * Readme.md, the file you are currently reading.
+  * [Readme.md](https://github.com/official-stockfish/Stockfish/blob/master/README.md), the file you are currently reading.
 
-  * Copying.txt, a text file containing the GNU General Public License version 3.
-  
-  * AUTHORS, a text file with the list of authors for the project
+  * [Copying.txt](https://github.com/official-stockfish/Stockfish/blob/master/Copying.txt), a text file containing the GNU General Public License version 3.
 
-  * src, a subdirectory containing the full source code, including a Makefile
+  * [AUTHORS](https://github.com/official-stockfish/Stockfish/blob/master/AUTHORS), a text file with the list of authors for the project
+
+  * [src](https://github.com/official-stockfish/Stockfish/tree/master/src), a subdirectory containing the full source code, including a Makefile
     that can be used to compile Stockfish on Unix-like systems.
 
-  * a file with the .nnue extension, storing the neural network for the NNUE 
+  * a file with the .nnue extension, storing the neural network for the NNUE
     evaluation. Binary distributions will have this file embedded.
 
-## UCI options
+## The UCI protocol and available options
 
-Currently, Stockfish has the following UCI options:
+The Universal Chess Interface (UCI) is a standard protocol used to communicate with
+a chess engine, and is the recommended way to do so for typical graphical user interfaces
+(GUI) or chess tools. Stockfish implements the majority of it options as described
+in [the UCI protocol](https://www.shredderchess.com/download/div/uci.zip).
+
+Developers can see the default values for UCI options available in Stockfish by typing
+`./stockfish uci` in a terminal, but the majority of users will typically see them and
+change them via a chess GUI. This is a list of available UCI options in Stockfish:
 
   * #### Threads
     The number of CPU threads used for searching a position. For best performance, set
@@ -153,14 +153,6 @@ Currently, Stockfish has the following UCI options:
     Limit Syzygy tablebase probing to positions with at most this many pieces left
     (including kings and pawns).
 
-  * #### Contempt
-    A positive value for contempt favors middle game positions and avoids draws,
-    effective for the classical evaluation only.
-
-  * #### Analysis Contempt
-    By default, contempt is set to prefer the side to move. Set this option to "White"
-    or "Black" to analyse with contempt for that side, or "Off" to disable contempt.
-
   * #### Move Overhead
     Assume a time delay of x ms due to network and GUI overheads. This is useful to
     avoid losses on time in those cases.
@@ -175,6 +167,34 @@ Currently, Stockfish has the following UCI options:
 
   * #### Debug Log File
     Write all communication to and from the engine into a text file.
+
+For developers the following non-standard commands might be of interest, mainly useful for debugging:
+
+  * #### bench *ttSize threads limit fenFile limitType evalType*
+    Performs a standard benchmark using various options. The signature of a version (standard node
+    count) is obtained using all defaults. `bench` is currently `bench 16 1 13 default depth mixed`.
+
+  * #### compiler
+    Give information about the compiler and environment used for building a binary.
+
+  * #### d
+    Display the current position, with ascii art and fen.
+
+  * #### eval
+    Return the evaluation of the current position.
+
+  * #### export_net [filename]
+    Exports the currently loaded network to a file.
+    If the currently loaded network is the embedded network and the filename
+    is not specified then the network is saved to the file matching the name
+    of the embedded network, as defined in evaluate.h.
+    If the currently loaded network is not the embedded network (some net set
+    through the UCI setoption) then the filename parameter is required and the
+    network is saved into that file.
+
+  * #### flip
+    Flips the side to move.
+
 
 ## A note on classical evaluation versus NNUE evaluation
 
@@ -202,7 +222,7 @@ Stockfish binary, but the default value of the EvalFile UCI option is the name o
 that is guaranteed to be compatible with that binary.
 
 2) to use the NNUE evaluation, the additional data file with neural network parameters
-needs to be available. Normally, this file is already embedded in the binary or it 
+needs to be available. Normally, this file is already embedded in the binary or it
 can be downloaded. The filename for the default (recommended) net can be found as the default
 value of the `EvalFile` UCI option, with the format `nn-[SHA256 first 12 digits].nnue`
 (for instance, `nn-c157e0a5755b.nnue`). This file can be downloaded from
@@ -215,7 +235,7 @@ replacing `[filename]` as needed.
 
 If the engine is searching a position that is not in the tablebases (e.g.
 a position with 8 pieces), it will access the tablebases during the search.
-If the engine reports a very large score (typically 153.xx), this means 
+If the engine reports a very large score (typically 153.xx), this means
 it has found a winning line into a tablebase position.
 
 If the engine is given a position to search that is in the tablebases, it
@@ -282,9 +302,9 @@ When not using the Makefile to compile (for instance, with Microsoft MSVC) you
 need to manually set/unset some switches in the compiler command line; see
 file *types.h* for a quick reference.
 
-When reporting an issue or a bug, please tell us which version and
-compiler you used to create your executable. These informations can
-be found by typing the following commands in a console:
+When reporting an issue or a bug, please tell us which Stockfish version
+and which compiler you used to create your executable. This information
+can be found by typing the following command in a console:
 
 ```
     ./stockfish compiler
@@ -292,8 +312,8 @@ be found by typing the following commands in a console:
 
 ## Understanding the code base and participating in the project
 
-Stockfish's improvement over the last couple of years has been a great
-community effort. There are a few ways to help contribute to its growth.
+Stockfish's improvement over the last decade has been a great community
+effort. There are a few ways to help contribute to its growth.
 
 ### Donating hardware
 
@@ -337,4 +357,4 @@ you are distributing. If you make any changes to the source code,
 these changes must also be made available under the GPL.
 
 For full details, read the copy of the GPL v3 found in the file named
-*Copying.txt*.
+[*Copying.txt*](https://github.com/official-stockfish/Stockfish/blob/master/Copying.txt).
