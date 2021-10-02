@@ -1001,12 +1001,8 @@ bool Position::legal(Move m) const {
       assert(piece_on(to) == NO_PIECE);
 
 #ifdef RELAY
-      if (is_relay())
-      {
-          Bitboard occupied = (pieces() ^ from ^ (to - pawn_push(us))) | to;
-          if (relayed_attackers_to<BISHOP, QUEEN>(square<KING>(us), ~us, occupied))
-              return false;
-      }
+      if (is_relay() && relayed_attackers_to<BISHOP, QUEEN>(square<KING>(us), ~us, occupied))
+          return false;
 #endif
       return   !(attacks_bb<  ROOK>(ksq, occupied) & pieces(~us, QUEEN, ROOK))
             && !(attacks_bb<BISHOP>(ksq, occupied) & pieces(~us, QUEEN, BISHOP));
