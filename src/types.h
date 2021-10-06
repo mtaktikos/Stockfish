@@ -1,6 +1,8 @@
 /*
   Stockfish, a UCI chess playing engine derived from Glaurung 2.1
-  Copyright (C) 2004-2021 The Stockfish developers (see AUTHORS file)
+  Copyright (C) 2004-2008 Tord Romstad (Glaurung author)
+  Copyright (C) 2008-2015 Marco Costalba, Joona Kiiski, Tord Romstad
+  Copyright (C) 2015-2018 Marco Costalba, Joona Kiiski, Gary Linscott, Tord Romstad
 
   Stockfish is free software: you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -38,9 +40,9 @@
 
 #include <cassert>
 #include <cctype>
+#include <climits>
 #include <cstdint>
 #include <cstdlib>
-#include <algorithm>
 #include <string>
 #include <vector>
 
@@ -58,12 +60,6 @@
 /// _MSC_VER           Compiler is MSVC or Intel on Windows
 /// _WIN32             Building on Windows (any)
 /// _WIN64             Building on Windows 64 bit
-
-#if defined(__GNUC__ ) && (__GNUC__ < 9 || (__GNUC__ == 9 && __GNUC_MINOR__ <= 2)) && defined(_WIN32) && !defined(__clang__)
-#define ALIGNAS_ON_STACK_VARIABLES_BROKEN
-#endif
-
-#define ASSERT_ALIGNED(ptr, alignment) assert(reinterpret_cast<uintptr_t>(ptr) % alignment == 0)
 
 #if defined(_WIN64) && defined(_MSC_VER) // No Makefile used
 #  include <intrin.h> // Microsoft header for _BitScanForward64()
@@ -85,35 +81,33 @@
 #  define pext(b, m) 0
 #endif
 
-namespace Stockfish {
-
 #ifdef USE_POPCNT
-constexpr bool HasPopCnt = true;
+const bool HasPopCnt = true;
 #else
-constexpr bool HasPopCnt = false;
+const bool HasPopCnt = false;
 #endif
 
 #ifdef USE_PEXT
-constexpr bool HasPext = true;
+const bool HasPext = true;
 #else
-constexpr bool HasPext = false;
+const bool HasPext = false;
 #endif
 
 #ifdef IS_64BIT
-constexpr bool Is64Bit = true;
+const bool Is64Bit = true;
 #else
-constexpr bool Is64Bit = false;
+const bool Is64Bit = false;
 #endif
 
 typedef uint64_t Key;
 typedef uint64_t Bitboard;
 
 #if defined(CRAZYHOUSE) || defined(HORDE)
-constexpr int MAX_MOVES = 512;
+const int MAX_MOVES = 512;
 #else
-constexpr int MAX_MOVES = 256;
+const int MAX_MOVES = 256;
 #endif
-constexpr int MAX_PLY   = 246;
+const int MAX_PLY   = 128;
 
 enum Variant {
   //main variants
@@ -145,6 +139,9 @@ enum Variant {
 #ifdef RACE
   RACE_VARIANT,
 #endif
+#ifdef RELAY
+  RELAY_VARIANT,
+#endif
 #ifdef THREECHECK
   THREECHECK_VARIANT,
 #endif
@@ -154,15 +151,6 @@ enum Variant {
   VARIANT_NB,
   LAST_VARIANT = VARIANT_NB - 1,
   //subvariants
-#ifdef ANTIHELPMATE
-  ANTIHELPMATE_VARIANT,
-#endif
-#ifdef HELPMATE
-  HELPMATE_VARIANT,
-#endif
-#ifdef GIVEAWAY
-  GIVEAWAY_VARIANT,
-#endif
 #ifdef SUICIDE
   SUICIDE_VARIANT,
 #endif
@@ -174,15 +162,6 @@ enum Variant {
 #endif
 #ifdef LOOP
   LOOP_VARIANT,
-#endif
-#ifdef PLACEMENT
-  PLACEMENT_VARIANT,
-#endif
-#ifdef KNIGHTRELAY
-  KNIGHTRELAY_VARIANT,
-#endif
-#ifdef RELAY
-  RELAY_VARIANT,
 #endif
 #ifdef SLIPPEDGRID
   SLIPPEDGRID_VARIANT,
@@ -198,7 +177,7 @@ static std::vector<std::string> variants = {
 //main variants
 "chess",
 #ifdef ANTI
-"antichess",
+"giveaway",
 #endif
 #ifdef ATOMIC
 "atomic",
@@ -224,6 +203,9 @@ static std::vector<std::string> variants = {
 #ifdef RACE
 "racingkings",
 #endif
+#ifdef RELAY
+"relay",
+#endif
 #ifdef THREECHECK
 "3check",
 #endif
@@ -231,15 +213,6 @@ static std::vector<std::string> variants = {
 "twokings",
 #endif
 //subvariants
-#ifdef ANTIHELPMATE
-"antihelpmate",
-#endif
-#ifdef HELPMATE
-"helpmate",
-#endif
-#ifdef GIVEAWAY
-"giveaway",
-#endif
 #ifdef SUICIDE
 "suicide",
 #endif
@@ -251,15 +224,6 @@ static std::vector<std::string> variants = {
 #endif
 #ifdef LOOP
 "loop",
-#endif
-#ifdef PLACEMENT
-"placement",
-#endif
-#ifdef KNIGHTRELAY
-"knightrelay",
-#endif
-#ifdef RELAY
-"relay",
 #endif
 #ifdef SLIPPEDGRID
 "slippedgrid",
@@ -275,7 +239,7 @@ static std::vector<std::string> variants = {
 /// bit  6-11: origin square (from 0 to 63)
 /// bit 12-13: promotion piece type - 2 (from KNIGHT-2 to QUEEN-2)
 /// bit 14-15: special move flag: promotion (1), en passant (2), castling (3)
-/// NOTE: en passant bit is set only when a pawn can be captured
+/// NOTE: EN-PASSANT bit is set only when a pawn can be captured
 ///
 /// Special cases are MOVE_NONE and MOVE_NULL. We can sneak these in because in
 /// any normal move destination square is always different from origin square
@@ -289,11 +253,11 @@ enum Move : int {
 enum MoveType {
   NORMAL,
   PROMOTION = 1 << 14,
-  EN_PASSANT = 2 << 14,
+  ENPASSANT = 2 << 14,
   CASTLING  = 3 << 14,
   // special moves use promotion piece type bits as flags
 #if defined(ANTI) || defined(CRAZYHOUSE) || defined(EXTINCTION)
-  SPECIAL = EN_PASSANT,
+  SPECIAL = ENPASSANT,
 #endif
 #ifdef CRAZYHOUSE
   DROP = 1 << 12,
@@ -307,20 +271,24 @@ enum Color {
   WHITE, BLACK, COLOR_NB = 2
 };
 
-enum CastlingRights {
+enum CastlingSide {
+  KING_SIDE, QUEEN_SIDE, CASTLING_SIDE_NB = 2
+};
+
+enum CastlingRight {
   NO_CASTLING,
   WHITE_OO,
   WHITE_OOO = WHITE_OO << 1,
   BLACK_OO  = WHITE_OO << 2,
   BLACK_OOO = WHITE_OO << 3,
-
-  KING_SIDE      = WHITE_OO  | BLACK_OO,
-  QUEEN_SIDE     = WHITE_OOO | BLACK_OOO,
-  WHITE_CASTLING = WHITE_OO  | WHITE_OOO,
-  BLACK_CASTLING = BLACK_OO  | BLACK_OOO,
-  ANY_CASTLING   = WHITE_CASTLING | BLACK_CASTLING,
-
+  ANY_CASTLING = WHITE_OO | WHITE_OOO | BLACK_OO | BLACK_OOO,
   CASTLING_RIGHT_NB = 16
+};
+
+template<Color C, CastlingSide S> struct MakeCastling {
+  static constexpr CastlingRight
+  right = C == WHITE ? S == QUEEN_SIDE ? WHITE_OOO : WHITE_OO
+                     : S == QUEEN_SIDE ? BLACK_OOO : BLACK_OO;
 };
 
 #ifdef GRID
@@ -350,6 +318,7 @@ enum Phase {
 
 enum ScaleFactor {
   SCALE_FACTOR_DRAW    = 0,
+  SCALE_FACTOR_ONEPAWN = 48,
   SCALE_FACTOR_NORMAL  = 64,
   SCALE_FACTOR_MAX     = 128,
   SCALE_FACTOR_NONE    = 255
@@ -362,11 +331,6 @@ enum Bound {
   BOUND_EXACT = BOUND_UPPER | BOUND_LOWER
 };
 
-enum ExplosionState {
-  EXPLOSION_NONE,
-  MUST_CALM_DOWN
-};
-
 enum Value : int {
   VALUE_ZERO      = 0,
   VALUE_DRAW      = 0,
@@ -375,16 +339,14 @@ enum Value : int {
   VALUE_INFINITE  = 32001,
   VALUE_NONE      = 32002,
 
-  VALUE_TB_WIN_IN_MAX_PLY  =  VALUE_MATE - 2 * MAX_PLY,
-  VALUE_TB_LOSS_IN_MAX_PLY = -VALUE_TB_WIN_IN_MAX_PLY,
-  VALUE_MATE_IN_MAX_PLY  =  VALUE_MATE - MAX_PLY,
-  VALUE_MATED_IN_MAX_PLY = -VALUE_MATE_IN_MAX_PLY,
+  VALUE_MATE_IN_MAX_PLY  =  VALUE_MATE - 2 * MAX_PLY,
+  VALUE_MATED_IN_MAX_PLY = -VALUE_MATE + 2 * MAX_PLY,
 
-  PawnValueMg   = 126,   PawnValueEg   = 208,
-  KnightValueMg = 781,   KnightValueEg = 854,
-  BishopValueMg = 825,   BishopValueEg = 915,
-  RookValueMg   = 1276,  RookValueEg   = 1380,
-  QueenValueMg  = 2538,  QueenValueEg  = 2682,
+  PawnValueMg   = 171,   PawnValueEg   = 240,
+  KnightValueMg = 764,   KnightValueEg = 848,
+  BishopValueMg = 826,   BishopValueEg = 891,
+  RookValueMg   = 1282,  RookValueEg   = 1373,
+  QueenValueMg  = 2526,  QueenValueEg  = 2646,
 #ifdef ANTI
   PawnValueMgAnti   = -108,  PawnValueEgAnti   = -165,
   KnightValueMgAnti = -155,  KnightValueEgAnti = 194,
@@ -394,18 +356,18 @@ enum Value : int {
   KingValueMgAnti   = -23,   KingValueEgAnti   = 173,
 #endif
 #ifdef ATOMIC
-  PawnValueMgAtomic   = 235,   PawnValueEgAtomic   = 346,
-  KnightValueMgAtomic = 434,   KnightValueEgAtomic = 668,
-  BishopValueMgAtomic = 564,   BishopValueEgAtomic = 728,
-  RookValueMgAtomic   = 789,   RookValueEgAtomic   = 1058,
-  QueenValueMgAtomic  = 1437,  QueenValueEgAtomic  = 1927,
+  PawnValueMgAtomic   = 244,   PawnValueEgAtomic   = 367,
+  KnightValueMgAtomic = 437,   KnightValueEgAtomic = 652,
+  BishopValueMgAtomic = 552,   BishopValueEgAtomic = 716,
+  RookValueMgAtomic   = 787,   RookValueEgAtomic   = 1074,
+  QueenValueMgAtomic  = 1447,  QueenValueEgAtomic  = 1892,
 #endif
 #ifdef CRAZYHOUSE
-  PawnValueMgHouse   = 149,   PawnValueEgHouse   = 206,
-  KnightValueMgHouse = 447,   KnightValueEgHouse = 527,
-  BishopValueMgHouse = 450,   BishopValueEgHouse = 521,
-  RookValueMgHouse   = 619,   RookValueEgHouse   = 669,
-  QueenValueMgHouse  = 878,   QueenValueEgHouse  = 965,
+  PawnValueMgHouse   = 140,   PawnValueEgHouse   = 232,
+  KnightValueMgHouse = 441,   KnightValueEgHouse = 538,
+  BishopValueMgHouse = 464,   BishopValueEgHouse = 508,
+  RookValueMgHouse   = 673,   RookValueEgHouse   = 727,
+  QueenValueMgHouse  = 832,   QueenValueEgHouse  = 1046,
 #endif
 #ifdef EXTINCTION
   PawnValueMgExtinction   = 209,   PawnValueEgExtinction   = 208,
@@ -451,19 +413,19 @@ enum Value : int {
   QueenValueMgRace  = 1674,  QueenValueEgRace  = 2280,
 #endif
 #ifdef THREECHECK
-  PawnValueMgThreeCheck   = 111,   PawnValueEgThreeCheck   = 205,
-  KnightValueMgThreeCheck = 565,   KnightValueEgThreeCheck = 736,
-  BishopValueMgThreeCheck = 633,   BishopValueEgThreeCheck = 729,
-  RookValueMgThreeCheck   = 1032,  RookValueEgThreeCheck   = 1426,
-  QueenValueMgThreeCheck  = 1914,  QueenValueEgThreeCheck  = 2303,
+  PawnValueMgThreeCheck   = 119,   PawnValueEgThreeCheck   = 205,
+  KnightValueMgThreeCheck = 645,   KnightValueEgThreeCheck = 770,
+  BishopValueMgThreeCheck = 693,   BishopValueEgThreeCheck = 754,
+  RookValueMgThreeCheck   = 1027,  RookValueEgThreeCheck   = 1418,
+  QueenValueMgThreeCheck  = 1947,  QueenValueEgThreeCheck  = 2323,
 #endif
 #ifdef TWOKINGS
-  PawnValueMgTwoKings   = 206,   PawnValueEgTwoKings   = 265,
-  KnightValueMgTwoKings = 887,   KnightValueEgTwoKings = 871,
-  BishopValueMgTwoKings = 940,   BishopValueEgTwoKings = 898,
-  RookValueMgTwoKings   = 1360,  RookValueEgTwoKings   = 1415,
-  QueenValueMgTwoKings  = 2455,  QueenValueEgTwoKings  = 2846,
-  KingValueMgTwoKings   = 554,   KingValueEgTwoKings   = 806,
+  PawnValueMgTwoKings   = 181,   PawnValueEgTwoKings   = 257,
+  KnightValueMgTwoKings = 778,   KnightValueEgTwoKings = 838,
+  BishopValueMgTwoKings = 840,   BishopValueEgTwoKings = 864,
+  RookValueMgTwoKings   = 1269,  RookValueEgTwoKings   = 1329,
+  QueenValueMgTwoKings  = 2432,  QueenValueEgTwoKings  = 2696,
+  KingValueMgTwoKings   = 520,   KingValueEgTwoKings   = 746,
 #endif
 
   MidgameLimit  = 15258, EndgameLimit  = 3915
@@ -472,124 +434,33 @@ enum Value : int {
 enum PieceType {
   NO_PIECE_TYPE, PAWN, KNIGHT, BISHOP, ROOK, QUEEN, KING,
   ALL_PIECES = 0,
+  QUEEN_DIAGONAL = 7,
   PIECE_TYPE_NB = 8
 };
 
 enum Piece {
   NO_PIECE,
-  W_PAWN = PAWN,     W_KNIGHT, W_BISHOP, W_ROOK, W_QUEEN, W_KING,
-  B_PAWN = PAWN + 8, B_KNIGHT, B_BISHOP, B_ROOK, B_QUEEN, B_KING,
+  W_PAWN = 1, W_KNIGHT, W_BISHOP, W_ROOK, W_QUEEN, W_KING,
+  B_PAWN = 9, B_KNIGHT, B_BISHOP, B_ROOK, B_QUEEN, B_KING,
   PIECE_NB = 16
 };
 
-constexpr Value PieceValue[VARIANT_NB][PHASE_NB][PIECE_NB] = {
-{
-  { VALUE_ZERO, PawnValueMg, KnightValueMg, BishopValueMg, RookValueMg, QueenValueMg, VALUE_ZERO, VALUE_ZERO,
-    VALUE_ZERO, PawnValueMg, KnightValueMg, BishopValueMg, RookValueMg, QueenValueMg, VALUE_ZERO, VALUE_ZERO },
-  { VALUE_ZERO, PawnValueEg, KnightValueEg, BishopValueEg, RookValueEg, QueenValueEg, VALUE_ZERO, VALUE_ZERO,
-    VALUE_ZERO, PawnValueEg, KnightValueEg, BishopValueEg, RookValueEg, QueenValueEg, VALUE_ZERO, VALUE_ZERO }
-},
-#ifdef ANTI
-{
-  { VALUE_ZERO, PawnValueMgAnti, KnightValueMgAnti, BishopValueMgAnti, RookValueMgAnti, QueenValueMgAnti, KingValueMgAnti, VALUE_ZERO,
-    VALUE_ZERO, PawnValueMgAnti, KnightValueMgAnti, BishopValueMgAnti, RookValueMgAnti, QueenValueMgAnti, KingValueMgAnti, VALUE_ZERO },
-  { VALUE_ZERO, PawnValueEgAnti, KnightValueEgAnti, BishopValueEgAnti, RookValueEgAnti, QueenValueEgAnti, KingValueEgAnti, VALUE_ZERO,
-    VALUE_ZERO, PawnValueEgAnti, KnightValueEgAnti, BishopValueEgAnti, RookValueEgAnti, QueenValueEgAnti, KingValueEgAnti, VALUE_ZERO }
-},
-#endif
-#ifdef ATOMIC
-{
-  { VALUE_ZERO, PawnValueMgAtomic, KnightValueMgAtomic, BishopValueMgAtomic, RookValueMgAtomic, QueenValueMgAtomic, VALUE_ZERO, VALUE_ZERO,
-    VALUE_ZERO, PawnValueMgAtomic, KnightValueMgAtomic, BishopValueMgAtomic, RookValueMgAtomic, QueenValueMgAtomic, VALUE_ZERO, VALUE_ZERO },
-  { VALUE_ZERO, PawnValueEgAtomic, KnightValueEgAtomic, BishopValueEgAtomic, RookValueEgAtomic, QueenValueEgAtomic, VALUE_ZERO, VALUE_ZERO,
-    VALUE_ZERO, PawnValueEgAtomic, KnightValueEgAtomic, BishopValueEgAtomic, RookValueEgAtomic, QueenValueEgAtomic, VALUE_ZERO, VALUE_ZERO }
-},
-#endif
-#ifdef CRAZYHOUSE
-{
-  { VALUE_ZERO, PawnValueMgHouse, KnightValueMgHouse, BishopValueMgHouse, RookValueMgHouse, QueenValueMgHouse, VALUE_ZERO, VALUE_ZERO,
-    VALUE_ZERO, PawnValueMgHouse, KnightValueMgHouse, BishopValueMgHouse, RookValueMgHouse, QueenValueMgHouse, VALUE_ZERO, VALUE_ZERO },
-  { VALUE_ZERO, PawnValueEgHouse, KnightValueEgHouse, BishopValueEgHouse, RookValueEgHouse, QueenValueEgHouse, VALUE_ZERO, VALUE_ZERO,
-    VALUE_ZERO, PawnValueEgHouse, KnightValueEgHouse, BishopValueEgHouse, RookValueEgHouse, QueenValueEgHouse, VALUE_ZERO, VALUE_ZERO }
-},
-#endif
-#ifdef EXTINCTION
-{
-  { VALUE_ZERO, PawnValueMgExtinction, KnightValueMgExtinction, BishopValueMgExtinction, RookValueMgExtinction, QueenValueMgExtinction, KingValueMgExtinction, VALUE_ZERO,
-    VALUE_ZERO, PawnValueMgExtinction, KnightValueMgExtinction, BishopValueMgExtinction, RookValueMgExtinction, QueenValueMgExtinction, KingValueMgExtinction, VALUE_ZERO },
-  { VALUE_ZERO, PawnValueEgExtinction, KnightValueEgExtinction, BishopValueEgExtinction, RookValueEgExtinction, QueenValueEgExtinction, KingValueEgExtinction, VALUE_ZERO,
-    VALUE_ZERO, PawnValueEgExtinction, KnightValueEgExtinction, BishopValueEgExtinction, RookValueEgExtinction, QueenValueEgExtinction, KingValueEgExtinction, VALUE_ZERO }
-},
-#endif
-#ifdef GRID
-{
-  { VALUE_ZERO, PawnValueMgGrid, KnightValueMgGrid, BishopValueMgGrid, RookValueMgGrid, QueenValueMgGrid, VALUE_ZERO, VALUE_ZERO,
-    VALUE_ZERO, PawnValueMgGrid, KnightValueMgGrid, BishopValueMgGrid, RookValueMgGrid, QueenValueMgGrid, VALUE_ZERO, VALUE_ZERO },
-  { VALUE_ZERO, PawnValueEgGrid, KnightValueEgGrid, BishopValueEgGrid, RookValueEgGrid, QueenValueEgGrid, VALUE_ZERO, VALUE_ZERO,
-    VALUE_ZERO, PawnValueEgGrid, KnightValueEgGrid, BishopValueEgGrid, RookValueEgGrid, QueenValueEgGrid, VALUE_ZERO, VALUE_ZERO }
-},
-#endif
-#ifdef HORDE
-{
-  { VALUE_ZERO, PawnValueMgHorde, KnightValueMgHorde, BishopValueMgHorde, RookValueMgHorde, QueenValueMgHorde, KingValueMgHorde, VALUE_ZERO,
-    VALUE_ZERO, PawnValueMgHorde, KnightValueMgHorde, BishopValueMgHorde, RookValueMgHorde, QueenValueMgHorde, KingValueMgHorde, VALUE_ZERO },
-  { VALUE_ZERO, PawnValueEgHorde, KnightValueEgHorde, BishopValueEgHorde, RookValueEgHorde, QueenValueEgHorde, KingValueEgHorde, VALUE_ZERO,
-    VALUE_ZERO, PawnValueEgHorde, KnightValueEgHorde, BishopValueEgHorde, RookValueEgHorde, QueenValueEgHorde, KingValueEgHorde, VALUE_ZERO }
-},
-#endif
-#ifdef KOTH
-{
-  { VALUE_ZERO, PawnValueMgHill, KnightValueMgHill, BishopValueMgHill, RookValueMgHill, QueenValueMgHill, VALUE_ZERO, VALUE_ZERO,
-    VALUE_ZERO, PawnValueMgHill, KnightValueMgHill, BishopValueMgHill, RookValueMgHill, QueenValueMgHill, VALUE_ZERO, VALUE_ZERO },
-  { VALUE_ZERO, PawnValueEgHill, KnightValueEgHill, BishopValueEgHill, RookValueEgHill, QueenValueEgHill, VALUE_ZERO, VALUE_ZERO,
-    VALUE_ZERO, PawnValueEgHill, KnightValueEgHill, BishopValueEgHill, RookValueEgHill, QueenValueEgHill, VALUE_ZERO, VALUE_ZERO }
-},
-#endif
-#ifdef LOSERS
-{
-  { VALUE_ZERO, PawnValueMgLosers, KnightValueMgLosers, BishopValueMgLosers, RookValueMgLosers, QueenValueMgLosers, VALUE_ZERO, VALUE_ZERO,
-    VALUE_ZERO, PawnValueMgLosers, KnightValueMgLosers, BishopValueMgLosers, RookValueMgLosers, QueenValueMgLosers, VALUE_ZERO, VALUE_ZERO },
-  { VALUE_ZERO, PawnValueEgLosers, KnightValueEgLosers, BishopValueEgLosers, RookValueEgLosers, QueenValueEgLosers, VALUE_ZERO, VALUE_ZERO,
-    VALUE_ZERO, PawnValueEgLosers, KnightValueEgLosers, BishopValueEgLosers, RookValueEgLosers, QueenValueEgLosers, VALUE_ZERO, VALUE_ZERO }
-},
-#endif
-#ifdef RACE
-{
-  { VALUE_ZERO, VALUE_ZERO, KnightValueMgRace, BishopValueMgRace, RookValueMgRace, QueenValueMgRace, VALUE_ZERO, VALUE_ZERO,
-    VALUE_ZERO, VALUE_ZERO, KnightValueMgRace, BishopValueMgRace, RookValueMgRace, QueenValueMgRace, VALUE_ZERO, VALUE_ZERO },
-  { VALUE_ZERO, VALUE_ZERO, KnightValueEgRace, BishopValueEgRace, RookValueEgRace, QueenValueEgRace, VALUE_ZERO, VALUE_ZERO,
-    VALUE_ZERO, VALUE_ZERO, KnightValueEgRace, BishopValueEgRace, RookValueEgRace, QueenValueEgRace, VALUE_ZERO, VALUE_ZERO }
-},
-#endif
-#ifdef THREECHECK
-{
-  { VALUE_ZERO, PawnValueMgThreeCheck, KnightValueMgThreeCheck, BishopValueMgThreeCheck, RookValueMgThreeCheck, QueenValueMgThreeCheck, VALUE_ZERO, VALUE_ZERO,
-    VALUE_ZERO, PawnValueMgThreeCheck, KnightValueMgThreeCheck, BishopValueMgThreeCheck, RookValueMgThreeCheck, QueenValueMgThreeCheck, VALUE_ZERO, VALUE_ZERO },
-  { VALUE_ZERO, PawnValueEgThreeCheck, KnightValueEgThreeCheck, BishopValueEgThreeCheck, RookValueEgThreeCheck, QueenValueEgThreeCheck, VALUE_ZERO, VALUE_ZERO,
-    VALUE_ZERO, PawnValueEgThreeCheck, KnightValueEgThreeCheck, BishopValueEgThreeCheck, RookValueEgThreeCheck, QueenValueEgThreeCheck, VALUE_ZERO, VALUE_ZERO }
-},
-#endif
-#ifdef TWOKINGS
-{
-  { VALUE_ZERO, PawnValueMgTwoKings, KnightValueMgTwoKings, BishopValueMgTwoKings, RookValueMgTwoKings, QueenValueMgTwoKings, KingValueMgTwoKings, VALUE_ZERO,
-    VALUE_ZERO, PawnValueMgTwoKings, KnightValueMgTwoKings, BishopValueMgTwoKings, RookValueMgTwoKings, QueenValueMgTwoKings, KingValueMgTwoKings, VALUE_ZERO },
-  { VALUE_ZERO, PawnValueEgTwoKings, KnightValueEgTwoKings, BishopValueEgTwoKings, RookValueEgTwoKings, QueenValueEgTwoKings, KingValueEgTwoKings, VALUE_ZERO,
-    VALUE_ZERO, PawnValueEgTwoKings, KnightValueEgTwoKings, BishopValueEgTwoKings, RookValueEgTwoKings, QueenValueEgTwoKings, KingValueEgTwoKings, VALUE_ZERO }
-},
-#endif
+extern Value PieceValue[VARIANT_NB][PHASE_NB][PIECE_NB];
+
+enum Depth : int {
+
+  ONE_PLY = 1,
+
+  DEPTH_ZERO          =  0 * ONE_PLY,
+  DEPTH_QS_CHECKS     =  0 * ONE_PLY,
+  DEPTH_QS_NO_CHECKS  = -1 * ONE_PLY,
+  DEPTH_QS_RECAPTURES = -5 * ONE_PLY,
+
+  DEPTH_NONE = -6 * ONE_PLY,
+  DEPTH_MAX  = MAX_PLY * ONE_PLY
 };
 
-typedef int Depth;
-
-enum : int {
-  DEPTH_QS_CHECKS     =  0,
-  DEPTH_QS_NO_CHECKS  = -1,
-  DEPTH_QS_RECAPTURES = -5,
-
-  DEPTH_NONE   = -6,
-
-  DEPTH_OFFSET = -7 // value used only for TT entry occupancy check
-};
+static_assert(!(ONE_PLY & (ONE_PLY - 1)), "ONE_PLY is not a power of 2");
 
 enum Square : int {
   SQ_A1, SQ_B1, SQ_C1, SQ_D1, SQ_E1, SQ_F1, SQ_G1, SQ_H1,
@@ -602,8 +473,7 @@ enum Square : int {
   SQ_A8, SQ_B8, SQ_C8, SQ_D8, SQ_E8, SQ_F8, SQ_G8, SQ_H8,
   SQ_NONE,
 
-  SQUARE_ZERO = 0,
-  SQUARE_NB   = 64
+  SQUARE_NB = 64
 };
 
 enum Direction : int {
@@ -626,26 +496,11 @@ enum Rank : int {
   RANK_1, RANK_2, RANK_3, RANK_4, RANK_5, RANK_6, RANK_7, RANK_8, RANK_NB
 };
 
-// Keep track of what a move changes on the board (used by NNUE)
-struct DirtyPiece {
 
-  // Number of changed pieces
-  int dirty_num;
-
-  // Max 3 pieces can change in one move. A promotion with capture moves
-  // both the pawn and the captured piece to SQ_NONE and the piece promoted
-  // to from SQ_NONE to the capture square.
-  Piece piece[3];
-
-  // From and to squares, which may be SQ_NONE
-  Square from[3];
-  Square to[3];
-};
-
-/// Score enum stores a middlegame and an endgame value in a single integer (enum).
-/// The least significant 16 bits are used to store the middlegame value and the
-/// upper 16 bits are used to store the endgame value. We have to take care to
-/// avoid left-shifting a signed int to avoid undefined behavior.
+/// Score enum stores a middlegame and an endgame value in a single integer
+/// (enum). The least significant 16 bits are used to store the endgame value
+/// and the upper 16 bits are used to store the middlegame value. Take some
+/// care to avoid left-shifting a signed int to avoid undefined behavior.
 enum Score : int { SCORE_ZERO };
 
 constexpr Score make_score(int mg, int eg) {
@@ -666,11 +521,11 @@ inline Value mg_value(Score s) {
 }
 
 #define ENABLE_BASE_OPERATORS_ON(T)                                \
-constexpr T operator+(T d1, int d2) { return T(int(d1) + d2); }    \
-constexpr T operator-(T d1, int d2) { return T(int(d1) - d2); }    \
+constexpr T operator+(T d1, T d2) { return T(int(d1) + int(d2)); } \
+constexpr T operator-(T d1, T d2) { return T(int(d1) - int(d2)); } \
 constexpr T operator-(T d) { return T(-int(d)); }                  \
-inline T& operator+=(T& d1, int d2) { return d1 = d1 + d2; }       \
-inline T& operator-=(T& d1, int d2) { return d1 = d1 - d2; }
+inline T& operator+=(T& d1, T d2) { return d1 = d1 + d2; }         \
+inline T& operator-=(T& d1, T d2) { return d1 = d1 - d2; }
 
 #define ENABLE_INCR_OPERATORS_ON(T)                                \
 inline T& operator++(T& d) { return d = T(int(d) + 1); }           \
@@ -678,6 +533,7 @@ inline T& operator--(T& d) { return d = T(int(d) - 1); }
 
 #define ENABLE_FULL_OPERATORS_ON(T)                                \
 ENABLE_BASE_OPERATORS_ON(T)                                        \
+ENABLE_INCR_OPERATORS_ON(T)                                        \
 constexpr T operator*(int i, T d) { return T(i * int(d)); }        \
 constexpr T operator*(T d, int i) { return T(int(d) * i); }        \
 constexpr T operator/(T d, int i) { return T(int(d) / i); }        \
@@ -685,15 +541,17 @@ constexpr int operator/(T d1, T d2) { return int(d1) / int(d2); }  \
 inline T& operator*=(T& d, int i) { return d = T(int(d) * i); }    \
 inline T& operator/=(T& d, int i) { return d = T(int(d) / i); }
 
+ENABLE_FULL_OPERATORS_ON(Variant)
 ENABLE_FULL_OPERATORS_ON(Value)
+#ifdef THREECHECK
+ENABLE_FULL_OPERATORS_ON(CheckCount)
+#endif
+ENABLE_FULL_OPERATORS_ON(Depth)
 ENABLE_FULL_OPERATORS_ON(Direction)
 
-ENABLE_INCR_OPERATORS_ON(Variant)
-#ifdef THREECHECK
-ENABLE_INCR_OPERATORS_ON(CheckCount)
-#endif
-ENABLE_INCR_OPERATORS_ON(Piece)
 ENABLE_INCR_OPERATORS_ON(PieceType)
+ENABLE_INCR_OPERATORS_ON(Piece)
+ENABLE_INCR_OPERATORS_ON(Color)
 ENABLE_INCR_OPERATORS_ON(Square)
 ENABLE_INCR_OPERATORS_ON(File)
 ENABLE_INCR_OPERATORS_ON(Rank)
@@ -704,11 +562,17 @@ ENABLE_BASE_OPERATORS_ON(Score)
 #undef ENABLE_INCR_OPERATORS_ON
 #undef ENABLE_BASE_OPERATORS_ON
 
+/// Additional operators to add integers to a Value
+constexpr Value operator+(Value v, int i) { return Value(int(v) + i); }
+constexpr Value operator-(Value v, int i) { return Value(int(v) - i); }
+inline Value& operator+=(Value& v, int i) { return v = v + i; }
+inline Value& operator-=(Value& v, int i) { return v = v - i; }
+
 /// Additional operators to add a Direction to a Square
-constexpr Square operator+(Square s, Direction d) { return Square(int(s) + int(d)); }
-constexpr Square operator-(Square s, Direction d) { return Square(int(s) - int(d)); }
-inline Square& operator+=(Square& s, Direction d) { return s = s + d; }
-inline Square& operator-=(Square& s, Direction d) { return s = s - d; }
+inline Square operator+(Square s, Direction d) { return Square(int(s) + int(d)); }
+inline Square operator-(Square s, Direction d) { return Square(int(s) - int(d)); }
+inline Square& operator+=(Square &s, Direction d) { return s = s + d; }
+inline Square& operator-=(Square &s, Direction d) { return s = s - d; }
 
 /// Only declared but not defined. We don't want to multiply two scores due to
 /// a very high risk of overflow. So user should explicitly convert to integer.
@@ -726,34 +590,29 @@ inline Score operator*(Score s, int i) {
 
   assert(eg_value(result) == (i * eg_value(s)));
   assert(mg_value(result) == (i * mg_value(s)));
-  assert((i == 0) || (result / i) == s);
+  assert((i == 0) || (result / i) == s );
 
   return result;
-}
-
-/// Multiplication of a Score by a boolean
-inline Score operator*(Score s, bool b) {
-  return b ? s : SCORE_ZERO;
 }
 
 constexpr Color operator~(Color c) {
   return Color(c ^ BLACK); // Toggle color
 }
 
-constexpr Square flip_rank(Square s) { // Swap A1 <-> A8
-  return Square(s ^ SQ_A8);
+constexpr Square operator~(Square s) {
+  return Square(s ^ SQ_A8); // Vertical flip SQ_A1 -> SQ_A8
 }
 
-constexpr Square flip_file(Square s) { // Swap A1 <-> H1
-  return Square(s ^ SQ_H1);
+constexpr File operator~(File f) {
+  return File(f ^ FILE_H); // Horizontal flip FILE_A -> FILE_H
 }
 
 constexpr Piece operator~(Piece pc) {
-  return Piece(pc ^ 8); // Swap color of piece B_KNIGHT <-> W_KNIGHT
+  return Piece(pc ^ 8); // Swap color of piece B_KNIGHT -> W_KNIGHT
 }
 
-constexpr CastlingRights operator&(Color c, CastlingRights cr) {
-  return CastlingRights((c == WHITE ? WHITE_CASTLING : BLACK_CASTLING) & cr);
+constexpr CastlingRight operator|(Color c, CastlingSide s) {
+  return CastlingRight(WHITE_OO << ((s == QUEEN_SIDE) + 2 * c));
 }
 
 constexpr Value mate_in(int ply) {
@@ -805,13 +664,18 @@ constexpr Rank relative_rank(Color c, Square s) {
   return relative_rank(c, rank_of(s));
 }
 
+inline bool opposite_colors(Square s1, Square s2) {
+  int s = int(s1) ^ int(s2);
+  return ((s >> 3) ^ s) & 1;
+}
+
 constexpr Direction pawn_push(Color c) {
   return c == WHITE ? NORTH : SOUTH;
 }
 
 #ifdef RACE
 constexpr Square horizontal_flip(Square s) {
-  return Square(s ^ (FILE_NB - 1)); // Horizontal flip SQ_A1 -> SQ_H1
+  return Square(s ^ SQ_H1); // Horizontal flip SQ_A1 -> SQ_H1
 }
 #endif
 
@@ -832,7 +696,7 @@ constexpr Square to_sq(Move m) {
 inline int from_to(Move m) {
 #ifdef CRAZYHOUSE
   if (type_of(m) == DROP)
-      return (to_sq(m) << 6) + to_sq(m);
+      return (m & 0x3F) + 0x1000;
 #endif
  return m & 0xFFF;
 }
@@ -862,12 +726,8 @@ inline PieceType promotion_type(Move m) {
   return PieceType(((m >> 12) & 3) + KNIGHT);
 }
 
-constexpr Move make_move(Square from, Square to) {
+inline Move make_move(Square from, Square to) {
   return Move((from << 6) + to);
-}
-
-inline Move reverse_move(Move m) {
-  return make_move(to_sq(m), from_sq(m));
 }
 
 template<MoveType T>
@@ -885,7 +745,7 @@ constexpr Move make_drop(Square to, Piece pc) {
 }
 
 constexpr Piece dropped_piece(Move m) {
-  return Piece((m >> 6) & 0x0F);
+  return Piece((m >> 6) & 15);
 }
 #endif
 
@@ -893,28 +753,11 @@ inline bool is_ok(Move m) {
   return from_sq(m) != to_sq(m); // Catch MOVE_NULL and MOVE_NONE
 }
 
-/// Based on a congruential pseudo random number generator
-constexpr Key make_key(uint64_t seed) {
-  return seed * 6364136223846793005ULL + 1442695040888963407ULL;
-}
-
 inline Variant main_variant(Variant v) {
   if (v < VARIANT_NB)
       return v;
   switch(v)
   {
-#ifdef ANTIHELPMATE
-  case ANTIHELPMATE_VARIANT:
-      return CHESS_VARIANT;
-#endif
-#ifdef HELPMATE
-  case HELPMATE_VARIANT:
-      return CHESS_VARIANT;
-#endif
-#ifdef GIVEAWAY
-  case GIVEAWAY_VARIANT:
-      return ANTI_VARIANT;
-#endif
 #ifdef SUICIDE
   case SUICIDE_VARIANT:
       return ANTI_VARIANT;
@@ -931,18 +774,6 @@ inline Variant main_variant(Variant v) {
   case LOOP_VARIANT:
       return CRAZYHOUSE_VARIANT;
 #endif
-#ifdef PLACEMENT
-  case PLACEMENT_VARIANT:
-      return CRAZYHOUSE_VARIANT;
-#endif
-#ifdef KNIGHTRELAY
-  case KNIGHTRELAY_VARIANT:
-      return CHESS_VARIANT;
-#endif
-#ifdef RELAY
-  case RELAY_VARIANT:
-      return CHESS_VARIANT;
-#endif
 #ifdef SLIPPEDGRID
   case SLIPPEDGRID_VARIANT:
       return GRID_VARIANT;
@@ -956,8 +787,5 @@ inline Variant main_variant(Variant v) {
       return CHESS_VARIANT; // Silence a warning
   }
 }
-} // namespace Stockfish
 
 #endif // #ifndef TYPES_H_INCLUDED
-
-#include "tune.h" // Global visibility to tuning setup

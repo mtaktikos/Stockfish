@@ -1,6 +1,8 @@
 /*
   Stockfish, a UCI chess playing engine derived from Glaurung 2.1
-  Copyright (C) 2004-2021 The Stockfish developers (see AUTHORS file)
+  Copyright (C) 2004-2008 Tord Romstad (Glaurung author)
+  Copyright (C) 2008-2015 Marco Costalba, Joona Kiiski, Tord Romstad
+  Copyright (C) 2015-2018 Marco Costalba, Joona Kiiski, Gary Linscott, Tord Romstad
 
   Stockfish is free software: you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -24,8 +26,6 @@
 #include <vector>
 
 #include "types.h"
-
-namespace Stockfish {
 
 class Position;
 
@@ -51,13 +51,13 @@ public:
   Option(bool v, OnChange = nullptr);
   Option(const char* v, OnChange = nullptr);
   Option(const char* v, const std::vector<std::string>& variants, OnChange = nullptr);
-  Option(double v, int minv, int maxv, OnChange = nullptr);
+  Option(int v, int minv, int maxv, OnChange = nullptr);
 
   Option& operator=(const std::string&);
   void operator<<(const Option&);
-  operator double() const;
+  operator int() const;
   operator std::string() const;
-  bool operator==(const char*) const;
+  int compare(const char*) const;
 
 private:
   friend std::ostream& operator<<(std::ostream&, const OptionsMap&);
@@ -75,14 +75,11 @@ std::string value(Value v);
 std::string square(Square s);
 std::string move(Move m, bool chess960);
 std::string pv(const Position& pos, Depth depth, Value alpha, Value beta);
-std::string wdl(Value v, int ply);
 Move to_move(const Position& pos, std::string& str);
 Variant variant_from_name(const std::string& str);
 
 } // namespace UCI
 
 extern UCI::OptionsMap Options;
-
-} // namespace Stockfish
 
 #endif // #ifndef UCI_H_INCLUDED

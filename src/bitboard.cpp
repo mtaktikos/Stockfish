@@ -1,6 +1,8 @@
 /*
   Stockfish, a UCI chess playing engine derived from Glaurung 2.1
-  Copyright (C) 2004-2021 The Stockfish developers (see AUTHORS file)
+  Copyright (C) 2004-2008 Tord Romstad (Glaurung author)
+  Copyright (C) 2008-2015 Marco Costalba, Joona Kiiski, Tord Romstad
+  Copyright (C) 2015-2018 Marco Costalba, Joona Kiiski, Gary Linscott, Tord Romstad
 
   Stockfish is free software: you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -17,19 +19,24 @@
 */
 
 #include <algorithm>
-#include <bitset>
 
 #include "bitboard.h"
 #include "misc.h"
 
-namespace Stockfish {
-
 uint8_t PopCnt16[1 << 16];
-uint8_t SquareDistance[SQUARE_NB][SQUARE_NB];
+int SquareDistance[SQUARE_NB][SQUARE_NB];
 
 Bitboard SquareBB[SQUARE_NB];
-Bitboard LineBB[SQUARE_NB][SQUARE_NB];
+Bitboard FileBB[FILE_NB];
+Bitboard RankBB[RANK_NB];
+Bitboard AdjacentFilesBB[FILE_NB];
+Bitboard ForwardRanksBB[COLOR_NB][RANK_NB];
 Bitboard BetweenBB[SQUARE_NB][SQUARE_NB];
+Bitboard LineBB[SQUARE_NB][SQUARE_NB];
+Bitboard DistanceRingBB[SQUARE_NB][8];
+Bitboard ForwardFileBB[COLOR_NB][SQUARE_NB];
+Bitboard PassedPawnMask[COLOR_NB][SQUARE_NB];
+Bitboard PawnAttackSpan[COLOR_NB][SQUARE_NB];
 Bitboard PseudoAttacks[PIECE_TYPE_NB][SQUARE_NB];
 Bitboard PawnAttacks[COLOR_NB][SQUARE_NB];
 #ifdef GRID
@@ -41,26 +48,82 @@ Magic BishopMagics[SQUARE_NB];
 
 namespace {
 
+  // De Bruijn sequences. See chessprogramming.wikispaces.com/BitScan
+  const uint64_t DeBruijn64 = 0x3F79D71B4CB0A89ULL;
+  const uint32_t DeBruijn32 = 0x783A9B23;
+
+  int MSBTable[256];            // To implement software msb()
+  Square BSFTable[SQUARE_NB];   // To implement software bitscan
   Bitboard RookTable[0x19000];  // To store rook attacks
   Bitboard BishopTable[0x1480]; // To store bishop attacks
 
-  void init_magics(PieceType pt, Bitboard table[], Magic magics[]);
+  void init_magics(Bitboard table[], Magic magics[], Direction directions[]);
 
+  // bsf_index() returns the index into BSFTable[] to look up the bitscan. Uses
+  // Matt Taylor's folding for 32 bit case, extended to 64 bit by Kim Walisch.
+
+  unsigned bsf_index(Bitboard b) {
+    b ^= b - 1;
+    return Is64Bit ? (b * DeBruijn64) >> 58
+                   : ((unsigned(b) ^ unsigned(b >> 32)) * DeBruijn32) >> 26;
+  }
+
+
+  // popcount16() counts the non-zero bits using SWAR-Popcount algorithm
+
+  unsigned popcount16(unsigned u) {
+    u -= (u >> 1) & 0x5555U;
+    u = ((u >> 2) & 0x3333U) + (u & 0x3333U);
+    u = ((u >> 4) + u) & 0x0F0FU;
+    return (u * 0x0101U) >> 8;
+  }
 }
 
-/// safe_destination() returns the bitboard of target square for the given step
-/// from the given square. If the step is off the board, returns empty bitboard.
+#ifdef NO_BSF
 
-inline Bitboard safe_destination(Square s, int step) {
-    Square to = Square(s + step);
-    return is_ok(to) && distance(s, to) <= 2 ? square_bb(to) : Bitboard(0);
+/// Software fall-back of lsb() and msb() for CPU lacking hardware support
+
+Square lsb(Bitboard b) {
+  assert(b);
+  return BSFTable[bsf_index(b)];
 }
+
+Square msb(Bitboard b) {
+
+  assert(b);
+  unsigned b32;
+  int result = 0;
+
+  if (b > 0xFFFFFFFF)
+  {
+      b >>= 32;
+      result = 32;
+  }
+
+  b32 = unsigned(b);
+
+  if (b32 > 0xFFFF)
+  {
+      b32 >>= 16;
+      result += 16;
+  }
+
+  if (b32 > 0xFF)
+  {
+      b32 >>= 8;
+      result += 8;
+  }
+
+  return Square(result + MSBTable[b32]);
+}
+
+#endif // ifdef NO_BSF
 
 
 /// Bitboards::pretty() returns an ASCII representation of a bitboard suitable
 /// to be printed to standard output. Useful for debugging.
 
-std::string Bitboards::pretty(Bitboard b) {
+const std::string Bitboards::pretty(Bitboard b) {
 
   std::string s = "+---+---+---+---+---+---+---+---+\n";
 
@@ -69,9 +132,8 @@ std::string Bitboards::pretty(Bitboard b) {
       for (File f = FILE_A; f <= FILE_H; ++f)
           s += b & make_square(f, r) ? "| X " : "|   ";
 
-      s += "| " + std::to_string(1 + r) + "\n+---+---+---+---+---+---+---+---+\n";
+      s += "|\n+---+---+---+---+---+---+---+---+\n";
   }
-  s += "  a   b   c   d   e   f   g   h\n";
 
   return s;
 }
@@ -83,94 +145,138 @@ std::string Bitboards::pretty(Bitboard b) {
 void Bitboards::init() {
 
   for (unsigned i = 0; i < (1 << 16); ++i)
-      PopCnt16[i] = uint8_t(std::bitset<16>(i).count());
+      PopCnt16[i] = (uint8_t) popcount16(i);
 
   for (Square s = SQ_A1; s <= SQ_H8; ++s)
-      SquareBB[s] = (1ULL << s);
+  {
+      SquareBB[s] = 1ULL << s;
+      BSFTable[bsf_index(SquareBB[s])] = s;
+  }
+
+  for (Bitboard b = 2; b < 256; ++b)
+      MSBTable[b] = MSBTable[b - 1] + !more_than_one(b);
+
+  for (File f = FILE_A; f <= FILE_H; ++f)
+      FileBB[f] = f > FILE_A ? FileBB[f - 1] << 1 : FileABB;
+
+  for (Rank r = RANK_1; r <= RANK_8; ++r)
+      RankBB[r] = r > RANK_1 ? RankBB[r - 1] << 8 : Rank1BB;
+
+  for (File f = FILE_A; f <= FILE_H; ++f)
+      AdjacentFilesBB[f] = (f > FILE_A ? FileBB[f - 1] : 0) | (f < FILE_H ? FileBB[f + 1] : 0);
+
+  for (Rank r = RANK_1; r < RANK_8; ++r)
+      ForwardRanksBB[WHITE][r] = ~(ForwardRanksBB[BLACK][r + 1] = ForwardRanksBB[BLACK][r] | RankBB[r]);
+
+  for (Color c = WHITE; c <= BLACK; ++c)
+      for (Square s = SQ_A1; s <= SQ_H8; ++s)
+      {
+          ForwardFileBB [c][s] = ForwardRanksBB[c][rank_of(s)] & FileBB[file_of(s)];
+          PawnAttackSpan[c][s] = ForwardRanksBB[c][rank_of(s)] & AdjacentFilesBB[file_of(s)];
+          PassedPawnMask[c][s] = ForwardFileBB [c][s] | PawnAttackSpan[c][s];
+      }
 
   for (Square s1 = SQ_A1; s1 <= SQ_H8; ++s1)
       for (Square s2 = SQ_A1; s2 <= SQ_H8; ++s2)
-          SquareDistance[s1][s2] = std::max(distance<File>(s1, s2), distance<Rank>(s1, s2));
+          if (s1 != s2)
+          {
+              SquareDistance[s1][s2] = std::max(distance<File>(s1, s2), distance<Rank>(s1, s2));
+              DistanceRingBB[s1][SquareDistance[s1][s2] - 1] |= s2;
+          }
 
-  init_magics(ROOK, RookTable, RookMagics);
-  init_magics(BISHOP, BishopTable, BishopMagics);
+  int steps[][5] = { {}, { 7, 9 }, { 6, 10, 15, 17 }, {}, {}, {}, { 1, 7, 8, 9 } };
+
+  for (Color c = WHITE; c <= BLACK; ++c)
+      for (PieceType pt : { PAWN, KNIGHT, KING })
+          for (Square s = SQ_A1; s <= SQ_H8; ++s)
+              for (int i = 0; steps[pt][i]; ++i)
+              {
+                  Square to = s + Direction(c == WHITE ? steps[pt][i] : -steps[pt][i]);
+
+                  if (is_ok(to) && distance(s, to) < 3)
+                  {
+                      if (pt == PAWN)
+                          PawnAttacks[c][s] |= to;
+                      else
+                          PseudoAttacks[pt][s] |= to;
+                  }
+              }
+
+  Direction RookDirections[] = { NORTH,  EAST,  SOUTH,  WEST };
+  Direction BishopDirections[] = { NORTH_EAST, SOUTH_EAST, SOUTH_WEST, NORTH_WEST };
+
+  init_magics(RookTable, RookMagics, RookDirections);
+  init_magics(BishopTable, BishopMagics, BishopDirections);
 
   for (Square s1 = SQ_A1; s1 <= SQ_H8; ++s1)
   {
-      PawnAttacks[WHITE][s1] = pawn_attacks_bb<WHITE>(square_bb(s1));
-      PawnAttacks[BLACK][s1] = pawn_attacks_bb<BLACK>(square_bb(s1));
-
-      for (int step : {-9, -8, -7, -1, 1, 7, 8, 9} )
-         PseudoAttacks[KING][s1] |= safe_destination(s1, step);
-
-      for (int step : {-17, -15, -10, -6, 6, 10, 15, 17} )
-         PseudoAttacks[KNIGHT][s1] |= safe_destination(s1, step);
-
       PseudoAttacks[QUEEN][s1]  = PseudoAttacks[BISHOP][s1] = attacks_bb<BISHOP>(s1, 0);
       PseudoAttacks[QUEEN][s1] |= PseudoAttacks[  ROOK][s1] = attacks_bb<  ROOK>(s1, 0);
 
       for (PieceType pt : { BISHOP, ROOK })
           for (Square s2 = SQ_A1; s2 <= SQ_H8; ++s2)
           {
-              if (PseudoAttacks[pt][s1] & s2)
-              {
-                  LineBB[s1][s2]    = (attacks_bb(pt, s1, 0) & attacks_bb(pt, s2, 0)) | s1 | s2;
-                  BetweenBB[s1][s2] = (attacks_bb(pt, s1, square_bb(s2)) & attacks_bb(pt, s2, square_bb(s1)));
-              }
-              BetweenBB[s1][s2] |= s2;
+              if (!(PseudoAttacks[pt][s1] & s2))
+                  continue;
+
+              LineBB[s1][s2] = (attacks_bb(pt, s1, 0) & attacks_bb(pt, s2, 0)) | s1 | s2;
+              BetweenBB[s1][s2] = attacks_bb(pt, s1, SquareBB[s2]) & attacks_bb(pt, s2, SquareBB[s1]);
           }
   }
 
 #ifdef GRID
   for (Square s = SQ_A1; s <= SQ_H8; ++s)
   {
-      GridBB[NORMAL_GRID][s]    = SquareBB[s] | SquareBB[int(s) ^ 8] | SquareBB[int(s) ^ 1] | SquareBB[int(s) ^ 9];
+      GridBB[NORMAL_GRID][s]    = SquareBB[s] | SquareBB[s ^ 8] | SquareBB[s ^ 1] | SquareBB[s ^ 9];
 #ifdef DISPLACEDGRID
       GridBB[DISPLACED_GRID][s] = SquareBB[s];
       if (!((FileABB | FileHBB) & s))
-          GridBB[DISPLACED_GRID][s] |= SquareBB[((s + 1) ^ 1) - 1];
+           GridBB[DISPLACED_GRID][s] |= SquareBB[((s + 1) ^ 1) - 1];
       if (!((Rank1BB | Rank8BB) & s))
-          GridBB[DISPLACED_GRID][s] |= SquareBB[((s + 8) ^ 8) - 8];
+           GridBB[DISPLACED_GRID][s] |= SquareBB[((s + 8) ^ 8) - 8];
       if (!((Rank1BB | Rank8BB | FileABB | FileHBB) & s))
-          GridBB[DISPLACED_GRID][s] |= SquareBB[((s + 9) ^ 9) - 9];
+           GridBB[DISPLACED_GRID][s] |= SquareBB[((s + 9) ^ 9) - 9];
 #endif
 #ifdef SLIPPEDGRID
-      GridBB[SLIPPED_GRID][s] = SquareBB[s] | SquareBB[int(s) ^ 8];
+      GridBB[SLIPPED_GRID][s] = SquareBB[s] | SquareBB[s ^ 8];
       if (!((FileABB | FileHBB) & s))
       {
-          GridBB[SLIPPED_GRID][s] |= SquareBB[((s + 1) ^ 1) - 1];
-          GridBB[SLIPPED_GRID][s] |= SquareBB[(((s + 1) ^ 1) - 1) ^ 8];
+           GridBB[SLIPPED_GRID][s] |= SquareBB[((s + 1) ^ 1) - 1];
+           GridBB[SLIPPED_GRID][s] |= SquareBB[(((s + 1) ^ 1) - 1) ^ 8];
       }
 #endif
   }
 #endif
 }
 
+
 namespace {
 
-  Bitboard sliding_attack(PieceType pt, Square sq, Bitboard occupied) {
+  Bitboard sliding_attack(Direction directions[], Square sq, Bitboard occupied) {
 
-    Bitboard attacks = 0;
-    Direction   RookDirections[4] = {NORTH, SOUTH, EAST, WEST};
-    Direction BishopDirections[4] = {NORTH_EAST, SOUTH_EAST, SOUTH_WEST, NORTH_WEST};
+    Bitboard attack = 0;
 
-    for (Direction d : (pt == ROOK ? RookDirections : BishopDirections))
-    {
-        Square s = sq;
-        while (safe_destination(s, d) && !(occupied & s))
-            attacks |= (s += d);
-    }
+    for (int i = 0; i < 4; ++i)
+        for (Square s = sq + directions[i];
+             is_ok(s) && distance(s, s - directions[i]) == 1;
+             s += directions[i])
+        {
+            attack |= s;
 
-    return attacks;
+            if (occupied & s)
+                break;
+        }
+
+    return attack;
   }
 
 
   // init_magics() computes all rook and bishop attacks at startup. Magic
   // bitboards are used to look up attacks of sliding pieces. As a reference see
-  // www.chessprogramming.org/Magic_Bitboards. In particular, here we use the so
-  // called "fancy" approach.
+  // chessprogramming.wikispaces.com/Magic+Bitboards. In particular, here we
+  // use the so called "fancy" approach.
 
-  void init_magics(PieceType pt, Bitboard table[], Magic magics[]) {
+  void init_magics(Bitboard table[], Magic magics[], Direction directions[]) {
 
     // Optimal PRNG seeds to pick the correct magics in the shortest time
     int seeds[][RANK_NB] = { { 8977, 44560, 54343, 38998,  5731, 95205, 104912, 17020 },
@@ -190,7 +296,7 @@ namespace {
         // the number of 1s of the mask. Hence we deduce the size of the shift to
         // apply to the 64 or 32 bits word to get the index.
         Magic& m = magics[s];
-        m.mask  = sliding_attack(pt, s, 0) & ~edges;
+        m.mask  = sliding_attack(directions, s, 0) & ~edges;
         m.shift = (Is64Bit ? 64 : 32) - popcount(m.mask);
 
         // Set the offset for the attacks table of the square. We have individual
@@ -202,7 +308,7 @@ namespace {
         b = size = 0;
         do {
             occupancy[size] = b;
-            reference[size] = sliding_attack(pt, s, b);
+            reference[size] = sliding_attack(directions, s, b);
 
             if (HasPext)
                 m.attacks[pext(b, m.mask)] = reference[size];
@@ -245,5 +351,3 @@ namespace {
     }
   }
 }
-
-} // namespace Stockfish

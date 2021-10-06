@@ -1,6 +1,7 @@
 /*
   Stockfish, a UCI chess playing engine derived from Glaurung 2.1
-  Copyright (C) 2004-2021 The Stockfish developers (see AUTHORS file)
+  Copyright (c) 2013 Ronald de Man
+  Copyright (C) 2016-2018 Marco Costalba, Lucas Braesch
 
   Stockfish is free software: you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -23,7 +24,7 @@
 
 #include "../search.h"
 
-namespace Stockfish::Tablebases {
+namespace Tablebases {
 
 enum WDLScore {
     WDLLoss        = -2, // Loss
@@ -46,12 +47,12 @@ enum ProbeState {
 
 extern int MaxCardinality;
 
-void init(Variant v, const std::string& paths);
+void init(const std::string& paths, Variant variant);
 WDLScore probe_wdl(Position& pos, ProbeState* result);
 int probe_dtz(Position& pos, ProbeState* result);
-bool root_probe(Position& pos, Search::RootMoves& rootMoves);
-bool root_probe_wdl(Position& pos, Search::RootMoves& rootMoves);
-void rank_root_moves(Position& pos, Search::RootMoves& rootMoves);
+bool root_probe(Position& pos, Search::RootMoves& rootMoves, Value& score);
+bool root_probe_wdl(Position& pos, Search::RootMoves& rootMoves, Value& score);
+void filter_root_moves(Position& pos, Search::RootMoves& rootMoves);
 
 inline std::ostream& operator<<(std::ostream& os, const WDLScore v) {
 
@@ -75,6 +76,6 @@ inline std::ostream& operator<<(std::ostream& os, const ProbeState v) {
     return os;
 }
 
-} // namespace Stockfish::Tablebases
+}
 
 #endif
