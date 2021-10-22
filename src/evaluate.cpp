@@ -2031,7 +2031,7 @@ Value Eval::evaluate(const Position& pos) {
 
        v = NNUE::evaluate(pos, true) * scale / 1024;  // NNUE
        if (pos.variant() != CHESS_VARIANT)
-           nnue = Evaluation<NO_TRACE>(pos).variantValue(nnue);
+           v = Evaluation<NO_TRACE>(pos).variantValue(v);
 
        if (pos.is_chess960())
            v += fix_FRC(pos);
