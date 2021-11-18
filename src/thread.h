@@ -72,6 +72,7 @@ public:
   uint64_t nodesLastExplosive;
   uint64_t nodesLastNormal;
   std::atomic<uint64_t> nodes, tbHits, bestMoveChanges;
+  Value bestValue;
   int selDepth, nmpMinPly;
   Color nmpColor;
   ExplosionState state;
@@ -80,6 +81,7 @@ public:
   StateInfo rootState;
   Search::RootMoves rootMoves;
   Depth rootDepth, completedDepth;
+  Value rootDelta;
   CounterMoveHistory counterMoves;
   ButterflyHistory mainHistory;
   LowPlyHistory lowPlyHistory;
