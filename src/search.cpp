@@ -1006,7 +1006,7 @@ namespace {
 #ifdef EXTINCTION
     if (pos.is_extinction()) {} else
 #endif
-    if (   !PvNode
+    if (   !ss->ttPv
         &&  depth < 9
         &&  eval - futility_margin(pos.variant(), depth, improving) >= beta
         &&  eval < 15000) // 50% larger than VALUE_KNOWN_WIN, but smaller than TB wins.
