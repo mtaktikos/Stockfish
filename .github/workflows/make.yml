@@ -12,10 +12,9 @@ jobs:
 
     steps:
     - uses: actions/checkout@v2
-    - name: Set up Python 3.7
-      uses: actions/setup-python@v2
+    - uses: actions/setup-python@v2
       with:
-        python-version: 3.7
+        python-version: '3.x'
     - name: configure
       run: sudo apt install expect && pip3 install chess && git clone https://github.com/ddugovic/chess-artist.git ./tests/chess-artist --depth 1
     - name: make
