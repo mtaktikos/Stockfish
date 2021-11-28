@@ -102,7 +102,7 @@ namespace {
 #endif
   };
   constexpr int FutilityMarginParent[VARIANT_NB][2] = {
-  { 172, 145 },
+  { 142, 139 },
 #ifdef ANTI
   { 331, 372 },
 #endif
@@ -1264,13 +1264,15 @@ moves_loop: // When in check, search starts here
                   && history < -3000 * depth + 3000)
                   continue;
 
+              history += thisThread->mainHistory[us][from_to(move)];                  
+
               // Futility pruning: parent node (~5 Elo)
 #ifdef LOSERS
               if (pos.is_losers()) {} else
 #endif
               if (   !ss->inCheck
                   && lmrDepth < 8
-                  && ss->staticEval + FutilityMarginParent[pos.variant()][0] + FutilityMarginParent[pos.variant()][1] * lmrDepth + history / 256 <= alpha)
+                  && ss->staticEval + FutilityMarginParent[pos.variant()][0] + FutilityMarginParent[pos.variant()][1] * lmrDepth + history / 64 <= alpha)
                   continue;
 
               // Prune moves with negative SEE (~20 Elo)

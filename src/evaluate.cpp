@@ -2027,9 +2027,9 @@ Value Eval::evaluate(const Position& pos) {
 #ifdef USE_NNUE
   else
   {
-       int scale =   898
-                   + 24 * pos.count<PAWN>()
-                   + 33 * pos.non_pawn_material() / 1024;
+       int scale = 1049
+                   +  8 * pos.count<PAWN>()
+                   + 20 * pos.non_pawn_material() / 1024;
 
        Value nnue     = NNUE::evaluate(pos, true);     // NNUE
        if (pos.variant() != CHESS_VARIANT)
