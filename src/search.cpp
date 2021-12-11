@@ -376,6 +376,7 @@ void MainThread::search() {
       bestThread = Threads.get_best_thread();
 
   bestPreviousScore = bestThread->rootMoves[0].score;
+  bestPreviousAverageScore = bestThread->rootMoves[0].averageScore;
 
   // Send again PV info if we have a new best thread
   if (bestThread != this)
@@ -612,7 +613,8 @@ void Thread::search() {
           && !Threads.stop
           && !mainThread->stopOnPonderhit)
       {
-          double fallingEval = (318 + 6 * (mainThread->bestPreviousScore - bestValue)
+          double fallingEval = (142 + 6 * (mainThread->bestPreviousScore - bestValue)
+                                    + 6 * (mainThread->bestPreviousAverageScore - bestValue)
                                     + 6 * (mainThread->iterValue[iterIdx] - bestValue)) / 825.0;
           fallingEval = std::clamp(fallingEval, 0.5, 1.5);
 
@@ -1266,6 +1268,8 @@ moves_loop: // When in check, search starts here
 
               history += thisThread->mainHistory[us][from_to(move)];
 
+              lmrDepth = std::max(0, lmrDepth - (beta - alpha < thisThread->rootDelta / 4));
+
               // Futility pruning: parent node (~5 Elo)
 #ifdef LOSERS
               if (pos.is_losers()) {} else
@@ -1295,7 +1299,7 @@ moves_loop: // When in check, search starts here
       // a reduced search on all the other moves but the ttMove and if the
       // result is lower than ttValue minus a margin, then we will extend the ttMove.
       if (   !rootNode
-          &&  depth >= 7
+          &&  depth >= 6 + 2 * (PvNode && tte->is_pv())
           &&  move == ttMove
           && !excludedMove // Avoid recursive singular search
        /* &&  ttValue != VALUE_NONE Already implicit in the next condition */
@@ -1374,6 +1378,8 @@ moves_loop: // When in check, search starts here
       // Step 15. Make the move
       pos.do_move(move, st, givesCheck);
 
+      bool doDeeperSearch = false;
+
       // Step 16. Late moves reduction / extension (LMR, ~200 Elo)
       // We use various heuristics for the sons of a node after the first son has
       // been searched. In general we would like to reduce them, but there are many
@@ -1398,9 +1404,8 @@ moves_loop: // When in check, search starts here
               && !likelyFailLow)
               r -= 2;
 
-          // Increase reduction at non-PV nodes when the best move does not change frequently
-          if (  !PvNode
-              && thisThread->bestMoveChanges <= 2)
+          // Increase reduction at non-PV nodes
+          if (!PvNode)
               r++;
 
           // Decrease reduction if opponent's move count is high (~1 Elo)
@@ -1451,6 +1456,7 @@ moves_loop: // When in check, search starts here
 
           // If the son is reduced and fails high it will be re-searched at full depth
           doFullDepthSearch = value > alpha && d < newDepth;
+          doDeeperSearch = value > alpha + 88;
           didLMR = true;
       }
       else
@@ -1462,7 +1468,7 @@ moves_loop: // When in check, search starts here
       // Step 17. Full depth search when LMR is skipped or fails high
       if (doFullDepthSearch)
       {
-          value = -search<NonPV>(pos, ss+1, -(alpha+1), -alpha, newDepth, !cutNode);
+          value = -search<NonPV>(pos, ss+1, -(alpha+1), -alpha, newDepth + doDeeperSearch, !cutNode);
 #ifdef HELPMATE
           if (pos.is_helpmate())
               value = -value;
@@ -1605,7 +1611,15 @@ moves_loop: // When in check, search starts here
     // Bonus for prior countermove that caused the fail low
     else if (   (depth >= 3 || PvNode)
              && !priorCapture)
-        update_continuation_histories(ss-1, pos.piece_on(prevSq), prevSq, stat_bonus(depth) * (1 + (PvNode || cutNode)));
+    {
+        //Assign extra bonus if current node is PvNode or cutNode
+        //or fail low was really bad
+        bool extraBonus =    PvNode
+                          || cutNode
+                          || bestValue < alpha - 94 * depth;
+
+        update_continuation_histories(ss-1, pos.piece_on(prevSq), prevSq, stat_bonus(depth) * (1 + extraBonus));
+    }
 
     if (PvNode)
         bestValue = std::min(bestValue, maxValue);
