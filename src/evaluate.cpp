@@ -2027,8 +2027,7 @@ Value Eval::evaluate(const Position& pos) {
 #ifdef USE_NNUE
   else
   {
-       int scale = 1049
-                   +  8 * pos.count<PAWN>()
+       int scale = 1136
                    + 20 * pos.non_pawn_material() / 1024;
 
        Value nnue     = NNUE::evaluate(pos, true);     // NNUE
