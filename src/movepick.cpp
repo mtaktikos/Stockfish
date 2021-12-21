@@ -56,11 +56,14 @@ namespace {
 /// ordering is at the current node.
 
 /// MovePicker constructor for the main search
-MovePicker::MovePicker(const Position& p, Move ttm, Depth d, const ButterflyHistory* mh, const LowPlyHistory* lp,
-                       const CapturePieceToHistory* cph, const PieceToHistory** ch, Move cm, const Move* killers, int pl)
-           : pos(p), mainHistory(mh), lowPlyHistory(lp), captureHistory(cph), continuationHistory(ch),
-             ttMove(ttm), refutations{{killers[0], 0}, {killers[1], 0}, {cm, 0}}, depth(d), ply(pl) {
-
+MovePicker::MovePicker(const Position& p, Move ttm, Depth d, const ButterflyHistory* mh,
+                                                             const CapturePieceToHistory* cph,
+                                                             const PieceToHistory** ch,
+                                                             Move cm,
+                                                             const Move* killers)
+           : pos(p), mainHistory(mh), captureHistory(cph), continuationHistory(ch),
+             ttMove(ttm), refutations{{killers[0], 0}, {killers[1], 0}, {cm, 0}}, depth(d)
+{
   assert(d > 0);
 
   stage = (pos.checkers() ? EVASION_TT : MAIN_TT) +
@@ -69,9 +72,11 @@ MovePicker::MovePicker(const Position& p, Move ttm, Depth d, const ButterflyHist
 
 /// MovePicker constructor for quiescence search
 MovePicker::MovePicker(const Position& p, Move ttm, Depth d, const ButterflyHistory* mh,
-                       const CapturePieceToHistory* cph, const PieceToHistory** ch, Square rs)
-           : pos(p), mainHistory(mh), captureHistory(cph), continuationHistory(ch), ttMove(ttm), recaptureSquare(rs), depth(d) {
-
+                                                             const CapturePieceToHistory* cph,
+                                                             const PieceToHistory** ch,
+                                                             Square rs)
+           : pos(p), mainHistory(mh), captureHistory(cph), continuationHistory(ch), ttMove(ttm), recaptureSquare(rs), depth(d)
+{
   assert(d <= 0);
 
   stage = (pos.checkers() ? EVASION_TT : QSEARCH_TT) +
@@ -83,8 +88,8 @@ MovePicker::MovePicker(const Position& p, Move ttm, Depth d, const ButterflyHist
 /// MovePicker constructor for ProbCut: we generate captures with SEE greater
 /// than or equal to the given threshold.
 MovePicker::MovePicker(const Position& p, Move ttm, Value th, const CapturePieceToHistory* cph)
-           : pos(p), captureHistory(cph), ttMove(ttm), threshold(th) {
-
+           : pos(p), captureHistory(cph), ttMove(ttm), threshold(th)
+{
   assert(!pos.checkers());
 
   stage = PROBCUT_TT + !(ttm && pos.capture(ttm)
@@ -126,14 +131,12 @@ void MovePicker::score() {
                    + 2 * (*continuationHistory[0])[pos.moved_piece(m)][to_sq(m)]
                    +     (*continuationHistory[1])[pos.moved_piece(m)][to_sq(m)]
                    +     (*continuationHistory[3])[pos.moved_piece(m)][to_sq(m)]
-                   +     (*continuationHistory[5])[pos.moved_piece(m)][to_sq(m)]
-                   + (ply < MAX_LPH ? 6 * (*lowPlyHistory)[ply][from_to(m)] : 0);
+                   +     (*continuationHistory[5])[pos.moved_piece(m)][to_sq(m)];
 #ifdef ANTI
           if (pos.is_anti() && pos.attackers_to(to_sq(m), pos.pieces() ^ from_sq(m)) & pos.pieces(~pos.side_to_move()))
               m.value += (1 << 28);
 #endif
       }
-
       else // Type == EVASIONS
       {
           if (pos.capture(m))
