@@ -966,7 +966,8 @@ namespace {
 #endif
     if (   !ss->ttPv
         &&  depth < 9
-        &&  eval - futility_margin(pos.variant(), depth, improving) >= beta
+        &&  eval - futility_margin(pos.variant(), depth, improving) - (ss-1)->statScore / 256 >= beta
+        &&  eval >= beta
         &&  eval < 15000) // 50% larger than VALUE_KNOWN_WIN, but smaller than TB wins.
         return eval;
 
