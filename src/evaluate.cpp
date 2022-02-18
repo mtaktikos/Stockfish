@@ -1974,6 +1974,7 @@ make_v:
     return v + (pos.side_to_move() == WHITE ? v2 : -v2);
   }
 
+#ifdef USE_NNUE
   /// Fisher Random Chess: correction for cornered bishops, to fix chess960 play with NNUE
 
   Value fix_FRC(const Position& pos) {
@@ -2004,6 +2005,7 @@ make_v:
     return pos.side_to_move() == WHITE ?  Value(3 * correction)
                                        : -Value(3 * correction);
   }
+#endif
 
 } // namespace Eval
 
