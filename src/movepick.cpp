@@ -110,19 +110,19 @@ void MovePicker::score() {
       {
 #ifdef ATOMIC
           if (pos.is_atomic())
-              m.value = int(pos.see<ATOMIC_VARIANT>(m)) * 6
-                   + (*captureHistory)[pos.moved_piece(m)][to_sq(m)][type_of(pos.piece_on(to_sq(m)))];
+              m.value = 6 * int(pos.see<ATOMIC_VARIANT>(m)) * 6
+                       + (*captureHistory)[pos.moved_piece(m)][to_sq(m)][type_of(pos.piece_on(to_sq(m)))];
           else
 #endif
 #ifdef RACE
           if (pos.is_race())
-              m.value =  int(PieceValue[pos.variant()][MG][pos.piece_on(to_sq(m))]) * 6
+              m.value = 6 *  int(PieceValue[pos.variant()][MG][pos.piece_on(to_sq(m))])
                        - Value(1200 * relative_rank(BLACK, to_sq(m)))
                        + (*captureHistory)[pos.moved_piece(m)][to_sq(m)][type_of(pos.piece_on(to_sq(m)))];
           else
 #endif
-          m.value =  int(PieceValue[pos.variant()][MG][pos.piece_on(to_sq(m))]) * 6
-                   + (*captureHistory)[pos.moved_piece(m)][to_sq(m)][type_of(pos.piece_on(to_sq(m)))];
+          m.value =  6 * int(PieceValue[pos.variant()][MG][pos.piece_on(to_sq(m))])
+                   +     (*captureHistory)[pos.moved_piece(m)][to_sq(m)][type_of(pos.piece_on(to_sq(m)))];
 
       }
       else if constexpr (Type == QUIETS)
