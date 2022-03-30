@@ -1144,22 +1144,6 @@ inline Value Position::stalemate_value(int ply, Value drawValue) const {
   return drawValue;
 }
 
-inline bool Position::capture_or_promotion(Move m) const {
-  assert(is_ok(m));
-#ifdef RACE
-  if (is_race())
-  {
-    Square from = from_sq(m), to = to_sq(m);
-    return (type_of(board[from]) == KING && rank_of(to) > rank_of(from)) || !empty(to);
-  }
-#endif
-#ifdef CRAZYHOUSE
-  return type_of(m) != NORMAL ? type_of(m) != DROP && type_of(m) != CASTLING : !empty(to_sq(m));
-#else
-  return type_of(m) != NORMAL ? type_of(m) != CASTLING : !empty(to_sq(m));
-#endif
-}
-
 inline bool Position::capture(Move m) const {
   assert(is_ok(m));
   // Castling is encoded as "king captures rook"
