@@ -272,42 +272,7 @@ namespace {
   };
 
   // KingAttackWeights[PieceType] contains king attack weights by piece type
-  constexpr int KingAttackWeights[VARIANT_NB][PIECE_TYPE_NB] = {
-    { 0, 0, 81, 52, 44, 10 },
-#ifdef ANTI
-    {},
-#endif
-#ifdef ATOMIC
-    { 0, 0, 76, 64, 46, 11 },
-#endif
-#ifdef CRAZYHOUSE
-    { 0, 0, 112, 87, 63, 2 },
-#endif
-#ifdef EXTINCTION
-    {},
-#endif
-#ifdef GRID
-    { 0, 0, 89, 62, 47, 11 },
-#endif
-#ifdef HORDE
-    { 0, 0, 77, 55, 44, 10 },
-#endif
-#ifdef KOTH
-    { 0, 0, 76, 48, 44, 10 },
-#endif
-#ifdef LOSERS
-    { 0, 0, 77, 55, 44, 10 },
-#endif
-#ifdef RACE
-    {},
-#endif
-#ifdef THREECHECK
-    { 0, 0, 118, 66, 62, 35 },
-#endif
-#ifdef TWOKINGS
-    { 0, 0, 77, 55, 44, 10 },
-#endif
-  };
+  constexpr int KingAttackWeights[PIECE_TYPE_NB] = { 0, 0, 76, 46, 45, 14 };
 
   // Per-variant king danger malus factors
   constexpr int KingDangerParams[VARIANT_NB][11] = {
@@ -350,7 +315,7 @@ namespace {
   // SafeCheck[PieceType][single/multiple] contains safe check bonus by piece type,
   // higher if multiple safe checks are possible for that piece type.
   constexpr int SafeCheck[][2] = {
-      {}, {450, 900}, {803, 1292}, {639, 974}, {1087, 1878}, {759, 1132}
+      {}, {450, 900}, {805, 1292}, {650, 984}, {1071, 1886}, {730, 1128}
   };
 
 #define S(mg, eg) make_score(mg, eg)
@@ -955,7 +920,7 @@ namespace {
         if (b & kingRing[Them])
         {
             kingAttackersCount[Us]++;
-            kingAttackersWeight[Us] += KingAttackWeights[pos.variant()][Pt];
+            kingAttackersWeight[Us] += KingAttackWeights[Pt];
             kingAttacksCount[Us] += popcount(b & attackedBy[Them][KING]);
         }
 
@@ -2025,7 +1990,7 @@ Value Eval::evaluate(const Position& pos) {
   if (  !useNNUE
       || pos.variant() != CHESS_VARIANT
       || ((pos.this_thread()->depth > 9 || pos.count<ALL_PIECES>() > 7) &&
-          abs(eg_value(pos.psq_score())) * 5 > (856 + pos.non_pawn_material() / 64) * (5 + pos.rule50_count())))
+          abs(eg_value(pos.psq_score())) * 5 > (856 + pos.non_pawn_material() / 64) * (10 + pos.rule50_count())))
   {
 #endif
       v = Evaluation<NO_TRACE>(pos).value();          // classical
@@ -2039,7 +2004,7 @@ Value Eval::evaluate(const Position& pos) {
        Value nnue     = NNUE::evaluate(pos, true);     // NNUE
        if (pos.variant() != CHESS_VARIANT)
            nnue = Evaluation<NO_TRACE>(pos).variantValue(nnue);
-       int scale      = 1036 + 20 * pos.non_pawn_material() / 1024;
+       int scale      = 1036 + 22 * pos.non_pawn_material() / 1024;
        Color stm      = pos.side_to_move();
        Value optimism = pos.this_thread()->optimism[stm];
        Value psq      = (stm == WHITE ? 1 : -1) * eg_value(pos.psq_score());
@@ -2054,7 +2019,7 @@ Value Eval::evaluate(const Position& pos) {
 #endif
 
   // Damp down the evaluation linearly when shuffling
-  v = v * (207 - pos.rule50_count()) / 207;
+  v = v * (195 - pos.rule50_count()) / 211;
 
   // Guarantee evaluation does not hit the tablebase range
   v = std::clamp(v, VALUE_TB_LOSS_IN_MAX_PLY + 1, VALUE_TB_WIN_IN_MAX_PLY - 1);
