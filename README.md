@@ -57,7 +57,7 @@ avx2, neon, or similar).
 
 This distribution of Stockfish consists of the following files:
 
-  * [Readme.md](https://github.com/official-stockfish/Stockfish/blob/master/README.md),
+  * [README.md](https://github.com/official-stockfish/Stockfish/blob/master/README.md),
     the file you are currently reading.
 
   * [Copying.txt](https://github.com/official-stockfish/Stockfish/blob/master/Copying.txt),

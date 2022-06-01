@@ -829,7 +829,7 @@ inline int from_to(Move m) {
   if (type_of(m) == DROP)
       return (to_sq(m) << 6) + to_sq(m);
 #endif
- return m & 0xFFF;
+  return m & 0xFFF;
 }
 
 inline MoveType type_of(Move m) {
