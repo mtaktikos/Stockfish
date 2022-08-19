@@ -2166,9 +2166,16 @@ Key Position::key_after(Move m) const {
 
 #ifdef CRAZYHOUSE
   if (is_house() && type_of(m) == DROP)
-      return k ^ Zobrist::psq[pc][to] ^ Zobrist::inHand[pc][pieceCountInHand[color_of(pc)][type_of(pc)] - 1];
+  {
+      captured = pc;
+      k ^= Zobrist::psq[pc][to] ^ Zobrist::inHand[pc][pieceCountInHand[color_of(pc)][type_of(pc)] - 1];
+  }
+  else
 #endif
-  return k ^ Zobrist::psq[pc][to] ^ Zobrist::psq[pc][from];
+  k ^= Zobrist::psq[pc][to] ^ Zobrist::psq[pc][from];
+
+  return (captured || type_of(pc) == PAWN)
+      ? k : adjust_key50<true>(k);
 }
 
 #ifdef ATOMIC
