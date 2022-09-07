@@ -557,12 +557,21 @@ inline Bitboard Position::slider_attackers_to(Square s) const {
 }
 
 inline bool Position::kings_adjacent() const {
+  assert(is_atomic());
   return adjacent_squares_bb(byTypeBB[KING]) & byTypeBB[KING];
 }
 
 inline bool Position::kings_adjacent(Move m) const {
+  assert(is_atomic());
+#ifdef CRAZYHOUSE
+  // Silence GCC warning -Werror=array-bounds
+  if (from_sq(m) == SQ_NONE || type_of(moved_piece(m)) != KING)
+      return kings_adjacent();
+#else
+  assert(from_sq(m) != SQ_NONE);
   if (type_of(moved_piece(m)) != KING)
       return kings_adjacent();
+#endif
   Square to = to_sq(m);
   if (type_of(m) == CASTLING)
       to = relative_square(sideToMove, to > from_sq(m) ? SQ_G1 : SQ_C1);
