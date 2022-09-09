@@ -563,10 +563,16 @@ inline bool Position::kings_adjacent() const {
 }
 
 inline bool Position::kings_adjacent(Move m) const {
+  // Adjacent kings move validation is only relevant for atomic chess
+  // Mingw GCC suddenly started reporting a warning on unchanged code
+  // which cannot be easily changed (e.g. adding "Variant V" generics)
+  // without potentially conflicting with upstream patches
   assert(is_atomic());
 #ifdef CRAZYHOUSE
-  // Silence GCC warning -Werror=array-bounds
-  if (from_sq(m) == SQ_NONE || type_of(piece_on(from_sq(m))) != KING)
+  // Silence Mingw GCC warning -Werror=array-bounds
+  // Somehow upstream repository isn't prone to this same false warning
+  Square from = from_sq(m);
+  if (type_of(m) == DROP || from == SQ_NONE || type_of(piece_on(from)) != KING)
       return kings_adjacent();
 #else
   if (type_of(moved_piece(m)) != KING)
