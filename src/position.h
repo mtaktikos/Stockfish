@@ -566,7 +566,7 @@ inline bool Position::kings_adjacent(Move m) const {
   assert(is_atomic());
 #ifdef CRAZYHOUSE
   // Silence GCC warning -Werror=array-bounds
-  if (from_sq(m) == SQ_NONE || type_of(moved_piece(m)) != KING)
+  if (from_sq(m) == SQ_NONE || type_of(piece_on(from_sq(m))) != KING)
       return kings_adjacent();
 #else
   if (type_of(moved_piece(m)) != KING)
