@@ -1788,6 +1788,7 @@ namespace {
     // If scale factor is not already specific, scale up/down via general heuristics
     if (sf == SCALE_FACTOR_NORMAL)
     {
+        Square ksq;
         if (pos.opposite_bishops())
         {
             // For pure opposite colored bishops endgames use scale factor
@@ -1807,7 +1808,8 @@ namespace {
                 && pos.non_pawn_material(BLACK) == RookValueMg
                 && pos.count<PAWN>(strongSide) - pos.count<PAWN>(~strongSide) <= 1
                 && bool(KingSide & pos.pieces(strongSide, PAWN)) != bool(QueenSide & pos.pieces(strongSide, PAWN))
-                && (attacks_bb<KING>(pos.square<KING>(~strongSide)) & pos.pieces(~strongSide, PAWN)))
+                // Silence Mingw compiler warning -Werror=array-bounds
+                && (is_ok((ksq = pos.square<KING>(~strongSide))) && (attacks_bb<KING>(ksq) & pos.pieces(~strongSide, PAWN))))
             sf = 36;
         // For queen vs no queen endgames use scale factor
         // based on number of minors of side that doesn't have queen.

@@ -376,7 +376,6 @@ inline Piece Position::moved_piece(Move m) const {
 #ifdef CRAZYHOUSE
   if (type_of(m) == DROP)
       return dropped_piece(m);
-  assert(from_sq(m) != SQ_NONE);
 #endif
   return piece_on(from_sq(m));
 }
@@ -569,7 +568,7 @@ inline bool Position::kings_adjacent(Move m) const {
   // without potentially conflicting with upstream patches
   assert(is_atomic());
 #ifdef CRAZYHOUSE
-  // Silence Mingw GCC warning -Werror=array-bounds
+  // Silence Mingw compiler warning -Werror=array-bounds
   // Somehow upstream repository isn't prone to this same false warning
   Square from = from_sq(m);
   if (type_of(m) == DROP || from == SQ_NONE || type_of(piece_on(from)) != KING)

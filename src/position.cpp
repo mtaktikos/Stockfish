@@ -1467,7 +1467,7 @@ void Position::do_move(Move m, StateInfo& newSt, bool givesCheck) {
   Square from = from_sq(m);
   Square to = to_sq(m);
 #ifdef CRAZYHOUSE
-  // Silence Mingw GCC warning -Werror=array-bounds
+  // Silence Mingw compiler warning -Werror=array-bounds
   Piece pc = (is_house() && type_of(m) == DROP) || from == SQ_NONE ? dropped_piece(m) : piece_on(from);
 #else
   Piece pc = piece_on(from);
