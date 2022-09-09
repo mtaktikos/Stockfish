@@ -376,6 +376,7 @@ inline Piece Position::moved_piece(Move m) const {
 #ifdef CRAZYHOUSE
   if (type_of(m) == DROP)
       return dropped_piece(m);
+  assert(from_sq(m) != SQ_NONE);
 #endif
   return piece_on(from_sq(m));
 }
@@ -568,7 +569,6 @@ inline bool Position::kings_adjacent(Move m) const {
   if (from_sq(m) == SQ_NONE || type_of(moved_piece(m)) != KING)
       return kings_adjacent();
 #else
-  assert(from_sq(m) != SQ_NONE);
   if (type_of(moved_piece(m)) != KING)
       return kings_adjacent();
 #endif
