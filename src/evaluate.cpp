@@ -1956,7 +1956,7 @@ Value Eval::evaluate(const Position& pos, int* complexity) {
 #endif
   Value psq = pos.psq_eg_stm();
 
-  // We use the much less accurate but faster Classical eval when the NNUE 
+  // We use the much less accurate but faster Classical eval when the NNUE
   // option is set to false. Otherwise we use the NNUE eval unless the
   // PSQ advantage is decisive and several pieces remain (~3 Elo)
 #ifdef USE_NNUE
