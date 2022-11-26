@@ -58,9 +58,6 @@ using namespace Search;
 
 namespace {
 
-  // Time threshold for printing upperbound/lowerbound info
-  const int PV_MIN_ELAPSED = 2500;
-
   // Different node types, used as a template parameter
   enum NodeType { NonPV, PV, Root };
 
@@ -252,7 +249,7 @@ void MainThread::search() {
 
   // Send again PV info if we have a new best thread
   if (bestThread != this)
-      sync_cout << UCI::pv(bestThread->rootPos, bestThread->completedDepth, -VALUE_INFINITE, VALUE_INFINITE) << sync_endl;
+      sync_cout << UCI::pv(bestThread->rootPos, bestThread->completedDepth) << sync_endl;
 
   // Best move could be MOVE_NONE when searching on a terminal position
   sync_cout << "bestmove " << UCI::move(bestThread->rootMoves[0].pv[0], rootPos.is_chess960());
@@ -403,8 +400,8 @@ void Thread::search() {
               if (   mainThread
                   && multiPV == 1
                   && (bestValue <= alpha || bestValue >= beta)
-                  && Time.elapsed() > PV_MIN_ELAPSED)
-                  sync_cout << UCI::pv(rootPos, rootDepth, alpha, beta) << sync_endl;
+                  && Time.elapsed() > 3000)
+                  sync_cout << UCI::pv(rootPos, rootDepth) << sync_endl;
 
               // In case of failing low/high increase aspiration window and
               // re-search, otherwise exit the loop.
@@ -437,8 +434,8 @@ void Thread::search() {
           std::stable_sort(rootMoves.begin() + pvFirst, rootMoves.begin() + pvIdx + 1);
 
           if (    mainThread
-              && (Threads.stop || pvIdx + 1 == multiPV || Time.elapsed() > PV_MIN_ELAPSED))
-              sync_cout << UCI::pv(rootPos, rootDepth, alpha, beta) << sync_endl;
+              && (Threads.stop || pvIdx + 1 == multiPV || Time.elapsed() > 3000))
+              sync_cout << UCI::pv(rootPos, rootDepth) << sync_endl;
       }
 
       if (!Threads.stop)
@@ -1051,12 +1048,6 @@ moves_loop: // When in check, search starts here
           continue;
 
       ss->moveCount = ++moveCount;
-#ifdef PRINTCURRMOVE
-      if (rootNode && thisThread == Threads.main() && Time.elapsed() > PV_MIN_ELAPSED)
-          sync_cout << "info depth " << depth
-                    << " currmove " << UCI::move(move, pos.is_chess960())
-                    << " currmovenumber " << moveCount + thisThread->pvIdx << sync_endl;
-#endif
       if (PvNode)
           (ss+1)->pv = nullptr;
 
@@ -1305,7 +1296,11 @@ moves_loop: // When in check, search starts here
               // was good enough search deeper, if it was bad enough search shallower
               const bool doDeeperSearch = value > (alpha + 64 + 11 * (newDepth - d));
               const bool doShallowerSearch = value < bestValue + newDepth;
-              value = -search<NonPV>(pos, ss+1, -(alpha+1), -alpha, newDepth + doDeeperSearch - doShallowerSearch, !cutNode);
+
+              newDepth += doDeeperSearch - doShallowerSearch;
+
+              if (newDepth > d)
+                  value = -search<NonPV>(pos, ss+1, -(alpha+1), -alpha, newDepth, !cutNode);
 
               int bonus = value > alpha ?  stat_bonus(newDepth)
                                         : -stat_bonus(newDepth);
@@ -1367,6 +1362,8 @@ moves_loop: // When in check, search starts here
           {
               rm.score = value;
               rm.selDepth = thisThread->selDepth;
+              rm.scoreLowerbound = value >= beta;
+              rm.scoreUpperbound = value <= alpha;
               rm.pv.resize(1);
 
               assert((ss+1)->pv);
@@ -1560,13 +1557,7 @@ moves_loop: // When in check, search starts here
         && tte->depth() >= ttDepth
         && ttValue != VALUE_NONE // Only in case of TT access race
         && (tte->bound() & (ttValue >= beta ? BOUND_LOWER : BOUND_UPPER)))
-    {
-        // When infinite looping in quiescent search give some update
-        // (without cluttering the UI)
-        if (Threads.nodes_searched() % (PV_MIN_ELAPSED * 4) == 0)
-            sync_cout << UCI::pv(pos, ttDepth, alpha, beta) << sync_endl;
         return ttValue;
-    }
 
     // Evaluate the position statically
     if (ss->inCheck)
@@ -1706,12 +1697,11 @@ moves_loop: // When in check, search starts here
           && (*contHist[1])[pos.moved_piece(move)][to_sq(move)] < 0)
           continue;
 
-      // movecount pruning for quiet check evasions
+      // We prune after 2nd quiet check evasion where being 'in check' is implicitly checked through the counter
+      // and being a 'quiet' apart from being a tt move is assumed after an increment because captures are pushed ahead.
       if (   bestValue > VALUE_TB_LOSS_IN_MAX_PLY
-          && quietCheckEvasions > 1
-          && !capture
-          && ss->inCheck)
-          continue;
+          && quietCheckEvasions > 1)
+          break;
 
       quietCheckEvasions += !capture && ss->inCheck;
 
@@ -1979,7 +1969,7 @@ void MainThread::check_time() {
 /// UCI::pv() formats PV information according to the UCI protocol. UCI requires
 /// that all (if any) unsearched PV lines are sent using a previous search score.
 
-string UCI::pv(const Position& pos, Depth depth, Value alpha, Value beta) {
+string UCI::pv(const Position& pos, Depth depth) {
 
   std::stringstream ss;
   TimePoint elapsed = Time.elapsed() + 1;
@@ -2017,8 +2007,8 @@ string UCI::pv(const Position& pos, Depth depth, Value alpha, Value beta) {
       if (Options["UCI_ShowWDL"])
           ss << UCI::wdl(v, pos.game_ply());
 
-      if (!tb && i == pvIdx)
-          ss << (v >= beta ? " lowerbound" : v <= alpha ? " upperbound" : "");
+      if (i == pvIdx && !tb && updated) // tablebase- and previous-scores are exact
+         ss << (rootMoves[i].scoreLowerbound ? " lowerbound" : (rootMoves[i].scoreUpperbound ? " upperbound" : ""));
 
       ss << " nodes "    << nodesSearched
          << " nps "      << nodesSearched * 1000 / elapsed
