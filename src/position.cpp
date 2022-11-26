@@ -533,7 +533,7 @@ void Position::set_check_info(StateInfo* si) const {
           si->checkSquares[pt] &= ~grid_bb(ksq);
 #endif
 #ifdef TWOKINGS
-  if (is_two_kings())
+  if (is_two_kings() && count<KING>(sideToMove) > 1)
       si->checkSquares[KING] = attacks_bb<KING>(ksq);
   else
 #endif
@@ -1034,7 +1034,7 @@ bool Position::legal(Move m) const {
           if (attackers_to(s) & pieces(~us))
               return false;
 #ifdef TWOKINGS
-      if (is_two_kings())
+      if (is_two_kings() && count<KING>(us) > 1)
       {
           Square ksq = royal_king(us, pieces(us, KING) ^ from ^ to);
           if (attackers_to(ksq) & pieces(~us))
@@ -1064,7 +1064,7 @@ bool Position::legal(Move m) const {
       }
 #endif
 #ifdef TWOKINGS
-      if (is_two_kings())
+      if (is_two_kings() && count<KING>(us) > 1)
       {
           Square ksq = royal_king(us, pieces(us, KING) ^ from ^ to);
           return !(attackers_to(ksq, (pieces() ^ from) | to) & (pieces(~us) - to));
@@ -1484,7 +1484,7 @@ void Position::do_move(Move m, StateInfo& newSt, bool givesCheck) {
   if (is_extinction()) {} else
 #endif
 #ifdef TWOKINGS
-  if (is_two_kings()) {} else
+  if (is_two_kings() && count<KING>(them) > 1) {} else
 #endif
   assert(type_of(captured) != KING);
 
@@ -1828,6 +1828,11 @@ void Position::do_move(Move m, StateInfo& newSt, bool givesCheck) {
 #endif
 #ifdef RELAY
   if (is_relay() && (pieces() ^ pieces(PAWN, KING)))
+      givesCheck = true;
+#endif
+#ifdef TWOKINGS
+  // If one king is captured, maybe the remaining king is in check
+  if (is_two_kings() && type_of(captured) == KING)
       givesCheck = true;
 #endif
   st->checkersBB = givesCheck ? attackers_to(square<KING>(them)) & pieces(us) : 0;
