@@ -100,7 +100,7 @@ MovePicker::MovePicker(const Position& p, Move ttm, Value th, const CapturePiece
 
 /// MovePicker::score() assigns a numerical value to each move in a list, used
 /// for sorting. Captures are ordered by Most Valuable Victim (MVV), preferring
-/// captures with a good history. Quiets moves are ordered using the histories.
+/// captures with a good history. Quiets moves are ordered using the history tables.
 template<GenType Type>
 void MovePicker::score() {
 
@@ -126,19 +126,12 @@ void MovePicker::score() {
       {
 #ifdef ATOMIC
           if (pos.is_atomic())
-              m.value = 6 * int(pos.see<ATOMIC_VARIANT>(m)) * 6
-                       + (*captureHistory)[pos.moved_piece(m)][to_sq(m)][type_of(pos.piece_on(to_sq(m)))];
+              m.value = (7 * int(pos.see<ATOMIC_VARIANT>(m)) * 6
+                       + (*captureHistory)[pos.moved_piece(m)][to_sq(m)][type_of(pos.piece_on(to_sq(m)))]) / 16;
           else
 #endif
-#ifdef RACE
-          if (pos.is_race())
-              m.value = 6 *  int(PieceValue[pos.variant()][MG][pos.piece_on(to_sq(m))])
-                       - Value(1200 * relative_rank(BLACK, to_sq(m)))
-                       + (*captureHistory)[pos.moved_piece(m)][to_sq(m)][type_of(pos.piece_on(to_sq(m)))];
-          else
-#endif
-          m.value =  6 * int(PieceValue[pos.variant()][MG][pos.piece_on(to_sq(m))])
-                   +     (*captureHistory)[pos.moved_piece(m)][to_sq(m)][type_of(pos.piece_on(to_sq(m)))];
+          m.value =  (7 * int(PieceValue[pos.variant()][MG][pos.piece_on(to_sq(m))])
+                   +     (*captureHistory)[pos.moved_piece(m)][to_sq(m)][type_of(pos.piece_on(to_sq(m)))]) / 16;
 
       }
       else if constexpr (Type == QUIETS)
@@ -222,7 +215,7 @@ top:
 
   case GOOD_CAPTURE:
       if (select<Next>([&](){
-                       return pos.see_ge(*cur, Value(-69 * cur->value / 1024)) ?
+                       return pos.see_ge(*cur, Value(-cur->value)) ?
                               // Move losing capture to endBadCaptures to be tried later
                               true : (*endBadCaptures++ = *cur, false); }))
           return *(cur - 1);

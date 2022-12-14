@@ -1958,9 +1958,11 @@ Value Eval::evaluate(const Position& pos, int* complexity) {
   // PSQ advantage is decisive and several pieces remain. (~3 Elo)
 #ifdef USE_NNUE
   bool useClassical = !useNNUE || (pos.count<ALL_PIECES>() > 7 && abs(psq) > 1760);
+#else
+  bool useClassical = true;
+#endif
 
   if (useClassical)
-#endif
       v = Evaluation<NO_TRACE>(pos).value();
 #ifdef USE_NNUE
   else
@@ -1995,11 +1997,7 @@ Value Eval::evaluate(const Position& pos, int* complexity) {
   v = std::clamp(v, VALUE_TB_LOSS_IN_MAX_PLY + 1, VALUE_TB_WIN_IN_MAX_PLY - 1);
 
   // When not using NNUE, return classical complexity to caller
-#ifdef USE_NNUE
-  if (complexity && (!useNNUE || useClassical))
-#else
-  if (complexity)
-#endif
+  if (complexity && useClassical)
       *complexity = abs(v - psq);
 
   return v;
