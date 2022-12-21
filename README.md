@@ -392,7 +392,7 @@ For full details, read the copy of the GPL v3 found in the file named
 [fairy-website-link]: https://fairy-stockfish.github.io
 [worker-link]:        https://github.com/glinscott/fishtest/wiki/Running-the-worker:-overview
 
-[build-badge]:        https://img.shields.io/github/workflow/status/ddugovic/Stockfish/Stockfish?style=for-the-badge&label=stockfish&logo=github
+[build-badge]:        https://img.shields.io/github/actions/workflow/status/ddugovic/Stockfish/stockfish.yml?branch=master&style=for-the-badge&label=stockfish&logo=github
 [commits-badge]:      https://img.shields.io/github/commits-since/ddugovic/Stockfish/latest?style=for-the-badge
 [discord-badge]:      https://img.shields.io/discord/435943710472011776?style=for-the-badge&label=discord&logo=Discord
 [variant-discord-badge]:https://img.shields.io/discord/161062341427986433?style=for-the-badge&label=discord&logo=Discord
