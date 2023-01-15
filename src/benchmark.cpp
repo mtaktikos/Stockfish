@@ -16,7 +16,8 @@
   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include <algorithm>
+#include "benchmark.h"
+
 #include <fstream>
 #include <iostream>
 #include <istream>
