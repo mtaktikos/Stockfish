@@ -255,7 +255,7 @@ Position& Position::set(const string& fenStr, bool isChess960, Variant v, StateI
 #else
       else if (is_house() && token == '~')
 #endif
-          promotedPieces |= SquareBB[sq - 1];
+          promotedPieces |= square_bb(Square(sq - 1));
       // Stop before pieces in hand
       else if (is_house() && token == '[')
           break;
@@ -2194,7 +2194,7 @@ Value Position::see<ATOMIC_VARIANT>(Move m, PieceType nextVictim, Square s) cons
   Color us = color_of(piece_on(from));
   Bitboard blast = (attacks_bb(KING, to_sq(m), 0) & (pieces() ^ pieces(PAWN))) - from;
   if (s != to_sq(m))
-      blast &= ~SquareBB[s];
+      blast &= ~square_bb(s);
 
   if (blast & pieces(~us,KING))
       return VALUE_MATE;

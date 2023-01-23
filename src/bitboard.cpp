@@ -27,7 +27,6 @@ namespace Stockfish {
 uint8_t PopCnt16[1 << 16];
 uint8_t SquareDistance[SQUARE_NB][SQUARE_NB];
 
-Bitboard SquareBB[SQUARE_NB];
 Bitboard LineBB[SQUARE_NB][SQUARE_NB];
 Bitboard BetweenBB[SQUARE_NB][SQUARE_NB];
 Bitboard PseudoAttacks[PIECE_TYPE_NB][SQUARE_NB];
@@ -85,9 +84,6 @@ void Bitboards::init() {
   for (unsigned i = 0; i < (1 << 16); ++i)
       PopCnt16[i] = uint8_t(std::bitset<16>(i).count());
 
-  for (Square s = SQ_A1; s <= SQ_H8; ++s)
-      SquareBB[s] = (1ULL << s);
-
   for (Square s1 = SQ_A1; s1 <= SQ_H8; ++s1)
       for (Square s2 = SQ_A1; s2 <= SQ_H8; ++s2)
           SquareDistance[s1][s2] = std::max(distance<File>(s1, s2), distance<Rank>(s1, s2));
@@ -124,22 +120,22 @@ void Bitboards::init() {
 #ifdef GRID
   for (Square s = SQ_A1; s <= SQ_H8; ++s)
   {
-      GridBB[NORMAL_GRID][s]    = SquareBB[s] | SquareBB[int(s) ^ 8] | SquareBB[int(s) ^ 1] | SquareBB[int(s) ^ 9];
+      GridBB[NORMAL_GRID][s]    = square_bb(s) | square_bb(Square(int(s) ^ 8)) | square_bb(Square(int(s) ^ 1)) | square_bb(Square(int(s) ^ 9));
 #ifdef DISPLACEDGRID
-      GridBB[DISPLACED_GRID][s] = SquareBB[s];
+      GridBB[DISPLACED_GRID][s] = square_bb(s);
       if (!((FileABB | FileHBB) & s))
-          GridBB[DISPLACED_GRID][s] |= SquareBB[((s + 1) ^ 1) - 1];
+          GridBB[DISPLACED_GRID][s] |= square_bb(Square(((s + 1) ^ 1) - 1));
       if (!((Rank1BB | Rank8BB) & s))
-          GridBB[DISPLACED_GRID][s] |= SquareBB[((s + 8) ^ 8) - 8];
+          GridBB[DISPLACED_GRID][s] |= square_bb(Square(((s + 8) ^ 8) - 8));
       if (!((Rank1BB | Rank8BB | FileABB | FileHBB) & s))
-          GridBB[DISPLACED_GRID][s] |= SquareBB[((s + 9) ^ 9) - 9];
+          GridBB[DISPLACED_GRID][s] |= square_bb(Square(((s + 9) ^ 9) - 9));
 #endif
 #ifdef SLIPPEDGRID
-      GridBB[SLIPPED_GRID][s] = SquareBB[s] | SquareBB[int(s) ^ 8];
+      GridBB[SLIPPED_GRID][s] = square_bb(s) | square_bb(Square(int(s) ^ 8));
       if (!((FileABB | FileHBB) & s))
       {
-          GridBB[SLIPPED_GRID][s] |= SquareBB[((s + 1) ^ 1) - 1];
-          GridBB[SLIPPED_GRID][s] |= SquareBB[(((s + 1) ^ 1) - 1) ^ 8];
+          GridBB[SLIPPED_GRID][s] |= square_bb(Square(((s + 1) ^ 1) - 1));
+          GridBB[SLIPPED_GRID][s] |= square_bb(Square((((s + 1) ^ 1) - 1) ^ 8));
       }
 #endif
   }

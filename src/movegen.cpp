@@ -26,12 +26,12 @@ namespace Stockfish {
 namespace {
 
   template<Variant V, GenType Type, Direction D>
-  ExtMove* make_promotions(ExtMove* moveList, Square to) {
+  ExtMove* make_promotions(ExtMove* moveList, [[maybe_unused]] Square to) {
 
 #ifdef ANTI
-    if (V == ANTI_VARIANT)
+    if constexpr (V == ANTI_VARIANT)
     {
-        if (Type == QUIETS || Type == CAPTURES || Type == NON_EVASIONS)
+        if constexpr (Type == QUIETS || Type == CAPTURES || Type == NON_EVASIONS)
         {
             *moveList++ = make<PROMOTION>(to - D, to, QUEEN);
             *moveList++ = make<PROMOTION>(to - D, to, ROOK);
@@ -43,9 +43,9 @@ namespace {
     }
 #endif
 #ifdef LOSERS
-    if (V == LOSERS_VARIANT)
+    if constexpr (V == LOSERS_VARIANT)
     {
-        if (Type == QUIETS || Type == CAPTURES || Type == EVASIONS || Type == NON_EVASIONS)
+        if constexpr (Type == QUIETS || Type == CAPTURES || Type == EVASIONS || Type == NON_EVASIONS)
         {
             *moveList++ = make<PROMOTION>(to - D, to, QUEEN);
             *moveList++ = make<PROMOTION>(to - D, to, ROOK);
@@ -56,9 +56,9 @@ namespace {
     }
 #endif
 #ifdef HELPMATE
-    if (V == HELPMATE_VARIANT)
+    if constexpr (V == HELPMATE_VARIANT)
     {
-        if (Type == QUIETS || Type == CAPTURES || Type == NON_EVASIONS)
+        if constexpr (Type == QUIETS || Type == CAPTURES || Type == NON_EVASIONS)
         {
             *moveList++ = make<PROMOTION>(to - D, to, QUEEN);
             *moveList++ = make<PROMOTION>(to - D, to, ROOK);
@@ -68,16 +68,16 @@ namespace {
         return moveList;
     }
 #endif
-    if (Type == CAPTURES || Type == EVASIONS || Type == NON_EVASIONS)
+    if constexpr (Type == CAPTURES || Type == EVASIONS || Type == NON_EVASIONS)
         *moveList++ = make<PROMOTION>(to - D, to, QUEEN);
 
-    if (Type == QUIETS || Type == EVASIONS || Type == NON_EVASIONS)
+    if constexpr (Type == QUIETS || Type == EVASIONS || Type == NON_EVASIONS)
     {
         *moveList++ = make<PROMOTION>(to - D, to, ROOK);
         *moveList++ = make<PROMOTION>(to - D, to, BISHOP);
         *moveList++ = make<PROMOTION>(to - D, to, KNIGHT);
 #ifdef EXTINCTION
-        if (V == EXTINCTION_VARIANT)
+        if constexpr (V == EXTINCTION_VARIANT)
             *moveList++ = make<PROMOTION>(to - D, to, KING);
 #endif
     }
@@ -136,33 +136,33 @@ namespace {
     Bitboard pawnsNotOn7 = pos.pieces(Us, PAWN) & ~TRank7BB;
 
     // Single and double pawn pushes, no promotions
-    if (Type != CAPTURES)
+    if constexpr (Type != CAPTURES)
     {
         Bitboard b1 = shift<Up>(pawnsNotOn7)   & emptySquares;
 #ifdef ANTI
-        if (V == ANTI_VARIANT)
+        if constexpr (V == ANTI_VARIANT)
             b1 &= target;
 #endif
         Bitboard b2 = shift<Up>(b1 & TRank3BB) & emptySquares;
 #ifdef HORDE
-        if (V == HORDE_VARIANT)
+        if constexpr (V == HORDE_VARIANT)
             b2 = shift<Up>(b1 & (TRank2BB | TRank3BB)) & emptySquares;
 #endif
 
 #ifdef LOSERS
-        if (V == LOSERS_VARIANT)
+        if constexpr (V == LOSERS_VARIANT)
         {
             b1 &= target;
             b2 &= target;
         }
 #endif
-        if (Type == EVASIONS) // Consider only blocking squares
+        if constexpr (Type == EVASIONS) // Consider only blocking squares
         {
             b1 &= target;
             b2 &= target;
         }
 
-        if (Type == QUIET_CHECKS) switch (V)
+        if constexpr (Type == QUIET_CHECKS) switch (V)
         {
 #ifdef ANTI
         case ANTI_VARIANT:
@@ -214,21 +214,21 @@ namespace {
         Bitboard b3 = shift<Up     >(pawnsOn7) & emptySquares;
 
 #ifdef ATOMIC
-        if (V == ATOMIC_VARIANT)
+        if constexpr (V == ATOMIC_VARIANT)
         {
             b1 &= (Type == CAPTURES || Type == NON_EVASIONS) ? target : ~adjacent_squares_bb(pos.pieces(Us, KING));
             b2 &= (Type == CAPTURES || Type == NON_EVASIONS) ? target : ~adjacent_squares_bb(pos.pieces(Us, KING));
         }
 #endif
 #ifdef ANTI
-        if (V == ANTI_VARIANT)
+        if constexpr (V == ANTI_VARIANT)
             b3 &= target;
 #endif
 #ifdef LOSERS
-        if (V == LOSERS_VARIANT)
+        if constexpr (V == LOSERS_VARIANT)
             b3 &= target;
 #endif
-        if (Type == EVASIONS)
+        if constexpr (Type == EVASIONS)
             b3 &= target;
 
         while (b1)
@@ -242,12 +242,12 @@ namespace {
     }
 
     // Standard and en passant captures
-    if (Type == CAPTURES || Type == EVASIONS || Type == NON_EVASIONS)
+    if constexpr (Type == CAPTURES || Type == EVASIONS || Type == NON_EVASIONS)
     {
         Bitboard b1 = shift<UpRight>(pawnsNotOn7) & enemies;
         Bitboard b2 = shift<UpLeft >(pawnsNotOn7) & enemies;
 #ifdef ATOMIC
-        if (V == ATOMIC_VARIANT)
+        if constexpr (V == ATOMIC_VARIANT)
         {
             b1 &= (Type == CAPTURES || Type == NON_EVASIONS) ? target : ~adjacent_squares_bb(pos.pieces(Us, KING));
             b2 &= (Type == CAPTURES || Type == NON_EVASIONS) ? target : ~adjacent_squares_bb(pos.pieces(Us, KING));
@@ -267,7 +267,7 @@ namespace {
         }
 
 #ifdef KNIGHTRELAY
-        if (V == KNIGHTRELAY_VARIANT)
+        if constexpr (V == KNIGHTRELAY_VARIANT)
             for (b1 = pos.pieces(Us, PAWN); b1; )
             {
                 Square from = pop_lsb(b1);
@@ -310,7 +310,7 @@ namespace {
         Square from = pop_lsb(bb);
         Bitboard b = attacks_bb<Pt>(from, pos.pieces()) & target;
 #ifdef KNIGHTRELAY
-        if (V == KNIGHTRELAY_VARIANT)
+        if constexpr (V == KNIGHTRELAY_VARIANT)
         {
             if (Pt == KNIGHT)
                 b &= ~pos.pieces();
@@ -319,7 +319,7 @@ namespace {
         }
 #endif
 #ifdef RELAY
-        if (V == RELAY_VARIANT)
+        if constexpr (V == RELAY_VARIANT)
             for (PieceType pt = KNIGHT; pt <= KING; ++pt)
                 if (attacks_bb(pt, from, pos.pieces()) & pos.pieces(color_of(pos.piece_on(from)), pt))
                     b |= attacks_bb(pt, from, pos.pieces()) & target;
@@ -388,7 +388,7 @@ namespace {
             target &= pos.pieces(~Us);
 #endif
 #ifdef ATOMIC
-        if (V == ATOMIC_VARIANT)
+        if constexpr (V == ATOMIC_VARIANT)
         {
             // Captures that explode the opposing king or checking piece are legal.
             if (Type == EVASIONS)
@@ -472,7 +472,7 @@ namespace {
         if (Checks)
             b &= ~attacks_bb<QUEEN>(pos.square<KING>(~Us));
 #ifdef RACE
-        if (V == RACE_VARIANT)
+        if constexpr (V == RACE_VARIANT)
         {
             // Early generate king advance moves
             if (Type == CAPTURES)
@@ -482,7 +482,7 @@ namespace {
         }
 #endif
 #ifdef RELAY
-        if (V == RELAY_VARIANT)
+        if constexpr (V == RELAY_VARIANT)
         {
             if (Type == EVASIONS)
                 target = between_bb(ksq, lsb(pos.checkers()));
