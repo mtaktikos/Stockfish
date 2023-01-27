@@ -81,7 +81,7 @@ namespace {
 
   // History and stats update bonus, based on depth
   int stat_bonus(Depth d) {
-    return std::min((11 * d + 284) * d - 363 , 1650);
+    return std::min(350 * d - 400, 1650);
   }
 
   // Add a small random component to draw evaluations to avoid 3-fold blindness
@@ -1115,14 +1115,19 @@ moves_loop: // When in check, search starts here
 
               history += 2 * thisThread->mainHistory[us][from_to(move)];
 
+              lmrDepth += history / 7208;
+              lmrDepth = std::max(lmrDepth, -2);
+
               // Futility pruning: parent node (~13 Elo)
 #ifdef LOSERS
               if (pos.is_losers()) {} else
 #endif
               if (   !ss->inCheck
                   && lmrDepth < 13
-                  && ss->staticEval + 103 + 136 * lmrDepth + history / 53 <= alpha)
+                  && ss->staticEval + 103 + 136 * lmrDepth <= alpha)
                   continue;
+
+              lmrDepth = std::max(lmrDepth, 0);
 
               // Prune moves with negative SEE (~4 Elo)
 #ifdef ANTI
