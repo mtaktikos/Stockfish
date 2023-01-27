@@ -22,11 +22,7 @@
 #include <atomic>
 #include <condition_variable>
 #include <mutex>
-#ifdef _WIN32
 #include <thread>
-#else
-#include <pthread.h>
-#endif
 #include <vector>
 
 #include "material.h"
@@ -49,11 +45,7 @@ class Thread {
   std::condition_variable cv;
   size_t idx;
   bool exit = false, searching = true; // Set before starting std::thread
-#ifdef _WIN32
   NativeThread stdThread;
-#else
-  pthread_t nativeThread;
-#endif
 
 public:
   explicit Thread(size_t);

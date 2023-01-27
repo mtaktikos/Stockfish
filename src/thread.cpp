@@ -27,12 +27,6 @@
 #include "tt.h"
 
 namespace Stockfish {
-#ifndef _WIN32
-void* run_idle_loop(void* thread) {
-  static_cast<Thread*>(thread)->idle_loop();
-  return nullptr;
-}
-#endif
 
 ThreadPool Threads; // Global object
 
@@ -40,20 +34,7 @@ ThreadPool Threads; // Global object
 /// Thread constructor launches the thread and waits until it goes to sleep
 /// in idle_loop(). Note that 'searching' and 'exit' should be already set.
 
-#ifdef _WIN32
 Thread::Thread(size_t n) : idx(n), stdThread(&Thread::idle_loop, this) {
-#else
-Thread::Thread(size_t n) : idx(n) {
-#endif
-
-#ifndef _WIN32
-  // With increased MAX_MOVES (for variants) the stack can grow larger than the
-  // system default. Explicitly set a sufficient stack size.
-  pthread_attr_t attr;
-  pthread_attr_init(&attr);
-  pthread_attr_setstacksize(&attr, 4096 * MAX_MOVES);
-  pthread_create(&nativeThread, &attr, run_idle_loop, this);
-#endif
 
   wait_for_search_finished();
 }
@@ -68,11 +49,7 @@ Thread::~Thread() {
 
   exit = true;
   start_searching();
-#ifdef _WIN32
   stdThread.join();
-#else
-  pthread_join(nativeThread, nullptr);
-#endif
 }
 
 
