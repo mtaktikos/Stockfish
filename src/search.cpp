@@ -632,22 +632,24 @@ namespace {
     if (!rootNode)
         (ss+2)->statScore = 0;
 
-    // Step 4. Transposition table lookup. We don't want the score of a partial
-    // search to overwrite a previous full search TT value, so we use a different
-    // position key in case of an excluded move.
+    // Step 4. Transposition table lookup.
     excludedMove = ss->excludedMove;
-    posKey = excludedMove == MOVE_NONE ? pos.key() : pos.key() ^ make_key(excludedMove);
+    posKey = pos.key();
     tte = TT.probe(posKey, ss->ttHit);
     ttValue = ss->ttHit ? value_from_tt(tte->value(), ss->ply, pos.rule50_count()) : VALUE_NONE;
     ttMove =  rootNode ? thisThread->rootMoves[thisThread->pvIdx].pv[0]
             : ss->ttHit    ? tte->move() : MOVE_NONE;
     ttCapture = ttMove && pos.capture(ttMove);
+
+    // At this point, if excluded, skip straight to step 6, static eval. However,
+    // to save indentation, we list the condition in all code between here and there.
     if (!excludedMove)
         ss->ttPv = PvNode || (ss->ttHit && tte->is_pv());
 
     // At non-PV nodes we check for an early TT cutoff
     if (  !PvNode
         && ss->ttHit
+        && !excludedMove
         && tte->depth() > depth - (tte->bound() == BOUND_EXACT)
         && ttValue != VALUE_NONE // Possible in case of TT access race
         && (tte->bound() & (ttValue >= beta ? BOUND_LOWER : BOUND_UPPER)))
@@ -711,7 +713,7 @@ namespace {
 #ifdef RELAY
     if (pos.is_relay()) {} else
 #endif
-    if (!rootNode && TB::Cardinality)
+    if (!rootNode && !excludedMove && TB::Cardinality)
     {
         int piecesCount = pos.count<ALL_PIECES>();
 
@@ -790,6 +792,12 @@ namespace {
         complexity = 0;
         goto moves_loop;
     }
+    else if (excludedMove) {
+        // excludeMove implies that we had a ttHit on the containing non-excluded search with ss->staticEval filled from TT
+        // However static evals from the TT aren't good enough (-13 elo), presumably due to changing optimism context
+        // Recalculate value with current optimism (without updating thread avgComplexity)
+        ss->staticEval = eval = evaluate(pos, &complexity);
+    }
     else if (ss->ttHit)
     {
         // Never assume anything about values stored in TT
@@ -798,6 +806,7 @@ namespace {
             ss->staticEval = eval = evaluate(pos, &complexity);
         else // Fall back to (semi)classical complexity for TT hits, the NNUE complexity is lost
             complexity = abs(ss->staticEval - pos.psq_eg_stm());
+        thisThread->complexityAverage.update(complexity);
 
         // ttValue can be used as a better position evaluation (~7 Elo)
         if (    ttValue != VALUE_NONE
@@ -807,17 +816,15 @@ namespace {
     else
     {
         ss->staticEval = eval = evaluate(pos, &complexity);
+        thisThread->complexityAverage.update(complexity);
 
         // Save static evaluation into transposition table
-        if (!excludedMove)
-            tte->save(posKey, VALUE_NONE, ss->ttPv, BOUND_NONE, DEPTH_NONE, MOVE_NONE, eval);
+        tte->save(posKey, VALUE_NONE, ss->ttPv, BOUND_NONE, DEPTH_NONE, MOVE_NONE, eval);
     }
 #ifdef HELPMATE
     if (pos.is_helpmate())
         eval = -eval;
 #endif
-
-    thisThread->complexityAverage.update(complexity);
 
     // Use static evaluation difference to improve quiet move ordering (~4 Elo)
     if (is_ok((ss-1)->currentMove) && !(ss-1)->inCheck && !priorCapture)
@@ -1159,6 +1166,7 @@ moves_loop: // When in check, search starts here
               Depth singularDepth = (depth - 1) / 2;
 
               ss->excludedMove = move;
+              // the search with excludedMove will update ss->staticEval
               value = search<NonPV>(pos, ss, singularBeta - 1, singularBeta, singularDepth, cutNode);
 #ifdef HELPMATE
               if (pos.is_helpmate()) value = -value;
@@ -1268,6 +1276,11 @@ moves_loop: // When in check, search starts here
       if ((ss+1)->cutoffCnt > 3)
           r++;
 
+      // Decrease reduction if move is a killer and we have a good history
+      if (move == ss->killers[0]
+          && (*contHist[0])[movedPiece][to_sq(move)] >= 3600)
+          r--;
+
       ss->statScore =  2 * thisThread->mainHistory[us][from_to(move)]
                      + (*contHist[0])[movedPiece][to_sq(move)]
                      + (*contHist[1])[movedPiece][to_sq(move)]
@@ -1316,9 +1329,6 @@ moves_loop: // When in check, search starts here
 
               int bonus = value > alpha ?  stat_bonus(newDepth)
                                         : -stat_bonus(newDepth);
-
-              if (capture)
-                  bonus /= 6;
 
               update_continuation_histories(ss, movedPiece, to_sq(move), bonus);
           }
@@ -1694,9 +1704,9 @@ moves_loop: // When in check, search starts here
           }
       }
 
-      // Do not search moves with negative SEE values (~5 Elo)
+      // Do not search moves with bad enough SEE values (~5 Elo)
       if (    bestValue > VALUE_TB_LOSS_IN_MAX_PLY
-          && !pos.see_ge(move))
+          && !pos.see_ge(move, Value(-108)))
           continue;
 
       // Speculative prefetch as early as possible
