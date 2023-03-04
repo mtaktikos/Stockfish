@@ -796,7 +796,9 @@ namespace {
     else if (excludedMove)
     {
         // Providing the hint that this node's accumulator will be used often brings significant Elo gain (13 elo)
+#ifdef USE_NNUE
         Eval::NNUE::hint_common_parent_position(pos);
+#endif
         eval = ss->staticEval;
         complexity = abs(ss->staticEval - pos.psq_eg_stm());
     }
@@ -809,8 +811,10 @@ namespace {
         else // Fall back to (semi)classical complexity for TT hits, the NNUE complexity is lost
         {
             complexity = abs(ss->staticEval - pos.psq_eg_stm());
+#ifdef USE_NNUE
             if (PvNode)
                Eval::NNUE::hint_common_parent_position(pos);
+#endif
         }
 
         // ttValue can be used as a better position evaluation (~7 Elo)
@@ -985,7 +989,9 @@ namespace {
                 }
             }
 
+#ifdef USE_NNUE
         Eval::NNUE::hint_common_parent_position(pos);
+#endif
     }
 
     // Step 11. If the position is not in TT, decrease depth by 3.
