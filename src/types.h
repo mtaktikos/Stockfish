@@ -105,8 +105,8 @@ constexpr bool Is64Bit = true;
 constexpr bool Is64Bit = false;
 #endif
 
-typedef uint64_t Key;
-typedef uint64_t Bitboard;
+using Key = uint64_t;
+using Bitboard = uint64_t;
 
 #if defined(CRAZYHOUSE) || defined(HORDE)
 constexpr int MAX_MOVES = 512;
@@ -577,7 +577,7 @@ constexpr Value PieceValue[VARIANT_NB][PHASE_NB][PIECE_NB] = {
 #endif
 };
 
-typedef int Depth;
+using Depth = int;
 
 enum : int {
   DEPTH_QS_CHECKS     =  0,

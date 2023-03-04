@@ -198,7 +198,7 @@ namespace {
 
   // Threshold for lazy and space evaluation
   constexpr Value LazyThreshold1[VARIANT_NB] = {
-    Value(3631),
+    Value(3622),
 #ifdef ANTI
     2 * MidgameLimit,
 #endif
@@ -233,7 +233,7 @@ namespace {
     Value(3631),
 #endif
   };
-  constexpr Value LazyThreshold2    =  Value(2084);
+  constexpr Value LazyThreshold2    =  Value(1962);
   constexpr Value SpaceThreshold[VARIANT_NB] = {
     Value(11551),
 #ifdef ANTI
@@ -1968,7 +1968,7 @@ Value Eval::evaluate(const Position& pos, int* complexity) {
   else
   {
       int nnueComplexity;
-      int scale = 1076 + 96 * pos.non_pawn_material() / 5120;
+      int scale = 1001 + 5 * pos.count<PAWN>() + 61 * pos.non_pawn_material() / 4096;
 
       Color stm = pos.side_to_move();
       Value optimism = pos.this_thread()->optimism[stm];
@@ -1977,8 +1977,7 @@ Value Eval::evaluate(const Position& pos, int* complexity) {
 
       // Blend nnue complexity with (semi)classical complexity
       nnueComplexity = (  406 * nnueComplexity
-                        + 424 * abs(psq - nnue)
-                        + int(optimism) * int(psq - nnue)
+                        + (424 + optimism) * abs(psq - nnue)
                         ) / 1024;
 
       // Return hybrid NNUE complexity to caller
