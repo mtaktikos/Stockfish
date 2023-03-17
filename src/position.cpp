@@ -1172,8 +1172,7 @@ bool Position::pseudo_legal(const Move m) const {
       assert(promotion_type(m) - KNIGHT == 1);
   else
 #endif
-  if (promotion_type(m) - KNIGHT != NO_PIECE_TYPE)
-      return false;
+  assert(promotion_type(m) - KNIGHT == NO_PIECE_TYPE);
 
   // If the 'from' square is not occupied by a piece belonging to the side to
   // move, the move is obviously not legal.
@@ -1578,9 +1577,6 @@ void Position::do_move(Move m, StateInfo& newSt, bool givesCheck) {
           promotedPieces -= capsq;
       }
 #endif
-
-      if (type_of(m) == EN_PASSANT)
-          board[capsq] = NO_PIECE;
 
       // Update material hash key and prefetch access to materialTable
       k ^= Zobrist::psq[captured][capsq];

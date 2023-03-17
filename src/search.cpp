@@ -618,7 +618,6 @@ namespace {
 
     assert(0 <= ss->ply && ss->ply < MAX_PLY);
 
-    (ss+1)->ttPv         = false;
     (ss+1)->excludedMove = bestMove = MOVE_NONE;
     (ss+2)->killers[0]   = (ss+2)->killers[1] = MOVE_NONE;
     (ss+2)->cutoffCnt    = 0;
@@ -640,7 +639,7 @@ namespace {
     ttValue = ss->ttHit ? value_from_tt(tte->value(), ss->ply, pos.rule50_count()) : VALUE_NONE;
     ttMove =  rootNode ? thisThread->rootMoves[thisThread->pvIdx].pv[0]
             : ss->ttHit    ? tte->move() : MOVE_NONE;
-    ttCapture = ttMove && pos.capture(ttMove);
+    ttCapture = ttMove && pos.capture_stage(ttMove);
 
     // At this point, if excluded, skip straight to step 6, static eval. However,
     // to save indentation, we list the condition in all code between here and there.
@@ -937,7 +936,7 @@ namespace {
     probCutBeta = beta + 186 - 54 * improving;
 
     // Step 10. ProbCut (~10 Elo)
-    // If we have a good enough capture and a reduced search returns a value
+    // If we have a good enough capture (or queen promotion) and a reduced search returns a value
     // much above beta, we can (almost) safely prune the previous move.
     if (   !PvNode
         &&  depth > 4
@@ -959,9 +958,9 @@ namespace {
             if (move != excludedMove && pos.legal(move))
             {
 #ifdef RACE
-                assert((pos.is_race() && type_of(pos.moved_piece(move)) == KING) || pos.capture(move) || promotion_type(move) == QUEEN);
+                assert((pos.is_race() && type_of(pos.moved_piece(move)) == KING) || pos.capture_stage(move));
 #else
-                assert(pos.capture(move) || promotion_type(move) == QUEEN);
+                assert(pos.capture_stage(move));
 #endif
 
                 ss->currentMove = move;
@@ -1076,7 +1075,7 @@ moves_loop: // When in check, search starts here
           capture = (type_of(move) == PROMOTION);
       else
 #endif
-      capture = pos.capture(move);
+      capture = pos.capture_stage(move);
       movedPiece = pos.moved_piece(move);
       givesCheck = pos.gives_check(move);
 
@@ -1175,11 +1174,10 @@ moves_loop: // When in check, search starts here
               && (tte->bound() & BOUND_LOWER)
               &&  tte->depth() >= depth - 3)
           {
-              Value singularBeta = ttValue - (2 + (ss->ttPv && !PvNode)) * depth;
+              Value singularBeta = ttValue - (3 + 2 * (ss->ttPv && !PvNode)) * depth / 2;
               Depth singularDepth = (depth - 1) / 2;
 
               ss->excludedMove = move;
-              // the search with excludedMove will update ss->staticEval
               value = search<NonPV>(pos, ss, singularBeta - 1, singularBeta, singularDepth, cutNode);
 #ifdef HELPMATE
               if (pos.is_helpmate()) value = -value;
@@ -1211,10 +1209,14 @@ moves_loop: // When in check, search starts here
 
               // If the eval of ttMove is greater than beta, we reduce it (negative extension)
               else if (ttValue >= beta)
-                  extension = -2;
+                  extension = -2 - !PvNode;
 
               // If the eval of ttMove is less than value, we reduce it (negative extension)
               else if (ttValue <= value)
+                  extension = -1;
+
+              // If the eval of ttMove is less than alpha, we reduce it (negative extension)
+              else if (ttValue <= alpha)
                   extension = -1;
           }
 
@@ -1672,7 +1674,7 @@ moves_loop: // When in check, search starts here
           continue;
 
       givesCheck = pos.gives_check(move);
-      capture = pos.capture(move);
+      capture = pos.capture_stage(move);
 
       moveCount++;
 
@@ -1868,7 +1870,7 @@ moves_loop: // When in check, search starts here
     PieceType captured = type_of(pos.piece_on(to_sq(bestMove)));
     int bonus1 = stat_bonus(depth + 1);
 
-    if (!pos.capture(bestMove))
+    if (!pos.capture_stage(bestMove))
     {
         int bonus2 = bestValue > beta + 153 ? bonus1               // larger bonus
                                             : stat_bonus(depth);   // smaller bonus
