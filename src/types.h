@@ -779,6 +779,10 @@ inline Color color_of(Piece pc) {
   return Color(pc >> 3);
 }
 
+constexpr bool is_ok(Move m) {
+  return m != MOVE_NONE && m != MOVE_NULL;
+}
+
 constexpr bool is_ok(Square s) {
   return s >= SQ_A1 && s <= SQ_H8;
 }
@@ -820,10 +824,12 @@ inline Square from_sq(Move m) {
   if (type_of(m) == DROP)
       return SQ_NONE;
 #endif
+  assert(is_ok(m));
   return Square((m >> 6) & 0x3F);
 }
 
 constexpr Square to_sq(Move m) {
+  assert(is_ok(m));
   return Square(m & 0x3F);
 }
 
@@ -882,10 +888,6 @@ constexpr Piece dropped_piece(Move m) {
   return Piece((m >> 6) & 0x0F);
 }
 #endif
-
-inline bool is_ok(Move m) {
-  return from_sq(m) != to_sq(m); // Catch MOVE_NULL and MOVE_NONE
-}
 
 /// Based on a congruential pseudo random number generator
 constexpr Key make_key(uint64_t seed) {

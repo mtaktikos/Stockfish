@@ -179,6 +179,7 @@ public:
   template<Variant V>
   Value see(Move m, PieceType nextVictim, Square s) const;
 #endif
+  bool see_ge(Move m, Bitboard& occupied, Value threshold = VALUE_ZERO) const;
   bool see_ge(Move m, Value threshold = VALUE_ZERO) const;
 
   // Accessing hash keys
@@ -323,8 +324,8 @@ public:
 private:
   // Initialization helpers (used while setting up a position)
   void set_castling_right(Color c, Square kfrom, Square rfrom);
-  void set_state(StateInfo* si) const;
-  void set_check_info(StateInfo* si) const;
+  void set_state() const;
+  void set_check_info() const;
 
   // Other helpers
   void move_piece(Square from, Square to);
