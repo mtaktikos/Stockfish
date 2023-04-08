@@ -72,7 +72,7 @@ namespace {
 
   Depth reduction(bool i, Depth d, int mn, Value delta, Value rootDelta) {
     int r = Reductions[d] * Reductions[mn];
-    return (r + 1449 - int(delta) * 1032 / int(rootDelta)) / 1024 + (!i && r > 941);
+    return (r + 1449 - int(delta) * 937 / int(rootDelta)) / 1024 + (!i && r > 941);
   }
 
   constexpr int futility_move_count(bool improving, Depth depth) {
@@ -82,7 +82,7 @@ namespace {
 
   // History and stats update bonus, based on depth
   int stat_bonus(Depth d) {
-    return std::min(340 * d - 470, 1855);
+    return std::min(341 * d - 470, 1710);
   }
 
   // Add a small random component to draw evaluations to avoid 3-fold blindness
@@ -296,15 +296,13 @@ void Thread::search() {
 
   bestValue = delta = alpha = -VALUE_INFINITE;
   beta = VALUE_INFINITE;
+  optimism[WHITE] = optimism[BLACK] = VALUE_ZERO;
 
   if (mainThread)
   {
 
       int rootComplexity;
-      if (Eval::useNNUE)
-          Eval::NNUE::evaluate(rootPos, true, &rootComplexity);
-      else
-          Eval::evaluate(rootPos, &rootComplexity);
+      Eval::evaluate(rootPos, &rootComplexity);
 
       mainThread->complexity = std::min(1.03 + (rootComplexity - 241) / 1552.0, 1.45);
 
@@ -325,8 +323,6 @@ void Thread::search() {
       multiPV = std::max(multiPV, (size_t)4);
 
   multiPV = std::min(multiPV, rootMoves.size());
-
-  optimism[us] = optimism[~us] = VALUE_ZERO;
 
   int searchAgainCounter = 0;
 
@@ -861,7 +857,7 @@ namespace {
 #ifdef EXTINCTION
     if (pos.is_extinction()) {} else
 #endif
-    if (eval < alpha - 426 - 252 * depth * depth)
+    if (eval < alpha - 426 - 256 * depth * depth)
     {
         value = qsearch<NonPV>(pos, ss, alpha - 1, alpha);
         if (value < alpha)
@@ -886,7 +882,7 @@ namespace {
         && (ss-1)->statScore < 18755
         &&  eval >= beta
         &&  eval >= ss->staticEval
-        &&  ss->staticEval >= beta - 19 * depth - improvement / 13 + 253 + complexity / 25
+        &&  ss->staticEval >= beta - 20 * depth - improvement / 13 + 253 + complexity / 25
         && !excludedMove
         &&  pos.non_pawn_material(us)
         && (ss->ply >= thisThread->nmpMinPly || us != thisThread->nmpColor))
@@ -894,7 +890,7 @@ namespace {
         assert(eval - beta >= 0);
 
         // Null move dynamic reduction based on depth, eval and complexity of position
-        Depth R = std::min(int(eval - beta) / 168, 6) + depth / 3 + 4 - (complexity > 825);
+        Depth R = std::min(int(eval - beta) / 172, 6) + depth / 3 + 4 - (complexity > 825);
 
         ss->currentMove = MOVE_NULL;
         ss->continuationHistory = &thisThread->continuationHistory[0][0][NO_PIECE][0];
@@ -1165,7 +1161,7 @@ moves_loop: // When in check, search starts here
 #ifdef HELPMATE
               if (pos.is_helpmate()) {} else
 #endif
-              if (!pos.see_ge(move, Value(-24 * lmrDepth * lmrDepth - 15 * lmrDepth)))
+              if (!pos.see_ge(move, Value(-24 * lmrDepth * lmrDepth - 16 * lmrDepth)))
                   continue;
           }
       }
@@ -1304,10 +1300,10 @@ moves_loop: // When in check, search starts here
                      + (*contHist[0])[movedPiece][to_sq(move)]
                      + (*contHist[1])[movedPiece][to_sq(move)]
                      + (*contHist[3])[movedPiece][to_sq(move)]
-                     - 4182;
+                     - 4082;
 
       // Decrease/increase reduction for moves with a good/bad history (~25 Elo)
-      r -= ss->statScore / (11791 + 3992 * (depth > 6 && depth < 19));
+      r -= ss->statScore / (11079 + 4626 * (depth > 6 && depth < 19));
 
       // Step 17. Late moves reduction / extension (LMR, ~117 Elo)
       // We use various heuristics for the sons of a node after the first son has
@@ -1380,6 +1376,9 @@ moves_loop: // When in check, search starts here
           if (pos.is_helpmate())
               value = -value;
 #endif
+
+          if (moveCount > 1 && newDepth >= depth && !capture)
+              update_continuation_histories(ss, movedPiece, to_sq(move), -stat_bonus(newDepth));
       }
 
       // Step 19. Undo move
@@ -1453,16 +1452,18 @@ moves_loop: // When in check, search starts here
 
               if (PvNode && value < beta) // Update alpha! Always alpha < beta
               {
-                  alpha = value;
 
                   // Reduce other moves if we have found at least one score improvement (~1 Elo)
                   if (   depth > 1
-                      && depth < 6
-                      && beta  <  10534
-                      && alpha > -10534)
-                      depth -= 1;
+                      && ((improving && complexity > 971) || (value < (5 * alpha + 75 * beta) / 87) || depth < 6)
+                      && beta  <  12535
+                      && value > -12535) {
+                      bool extraReduction = depth > 2 && alpha > -12535 && bestValue != -VALUE_INFINITE && (value - bestValue) > (7 * (beta - alpha)) / 8;
+                      depth -= 1 + extraReduction;
+                  }
 
                   assert(depth > 0);
+                  alpha = value;
               }
               else
               {
