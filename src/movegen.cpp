@@ -25,7 +25,7 @@ namespace Stockfish {
 
 namespace {
 
-  template<Variant V, GenType Type, Direction D>
+  template<Variant V, GenType Type, Direction D, bool Enemy>
   ExtMove* make_promotions(ExtMove* moveList, [[maybe_unused]] Square to) {
 
 #ifdef ANTI
@@ -69,9 +69,17 @@ namespace {
     }
 #endif
     if constexpr (Type == CAPTURES || Type == EVASIONS || Type == NON_EVASIONS)
+    {
         *moveList++ = make<PROMOTION>(to - D, to, QUEEN);
+        if constexpr (Enemy && Type == CAPTURES)
+        {
+            *moveList++ = make<PROMOTION>(to - D, to, ROOK);
+            *moveList++ = make<PROMOTION>(to - D, to, BISHOP);
+            *moveList++ = make<PROMOTION>(to - D, to, KNIGHT);
+        }
+    }
 
-    if constexpr (Type == QUIETS || Type == EVASIONS || Type == NON_EVASIONS)
+    if constexpr ((Type == QUIETS && !Enemy) || Type == EVASIONS || Type == NON_EVASIONS)
     {
         *moveList++ = make<PROMOTION>(to - D, to, ROOK);
         *moveList++ = make<PROMOTION>(to - D, to, BISHOP);
@@ -232,13 +240,13 @@ namespace {
             b3 &= target;
 
         while (b1)
-            moveList = make_promotions<V, Type, UpRight>(moveList, pop_lsb(b1));
+            moveList = make_promotions<V, Type, UpRight, true>(moveList, pop_lsb(b1));
 
         while (b2)
-            moveList = make_promotions<V, Type, UpLeft >(moveList, pop_lsb(b2));
+            moveList = make_promotions<V, Type, UpLeft, true>(moveList, pop_lsb(b2));
 
         while (b3)
-            moveList = make_promotions<V, Type, Up     >(moveList, pop_lsb(b3));
+            moveList = make_promotions<V, Type, Up,    false>(moveList, pop_lsb(b3));
     }
 
     // Standard and en passant captures

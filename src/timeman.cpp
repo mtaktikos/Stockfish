@@ -72,6 +72,12 @@ constexpr int MoveHorizon[VARIANT_NB] = { // Plan time management at most this m
 
 void TimeManagement::init(Variant var, Search::LimitsType& limits, Color us, int ply) {
 
+  // if we have no time, no need to initialize TM, except for the start time,
+  // which is used by movetime.
+  startTime = limits.startTime;
+  if (limits.time[us] == 0)
+      return;
+
   TimePoint moveOverhead    = TimePoint(Options["Move Overhead"]);
   TimePoint slowMover       = TimePoint(Options["Slow Mover"]);
   TimePoint npmsec          = TimePoint(Options["nodestime"]);
@@ -94,8 +100,6 @@ void TimeManagement::init(Variant var, Search::LimitsType& limits, Color us, int
       limits.inc[us] *= npmsec;
       limits.npmsec = npmsec;
   }
-
-  startTime = limits.startTime;
 
   // Maximum move horizon of 50 moves
   int mtg = limits.movestogo ? std::min(limits.movestogo, MoveHorizon[var]) : MoveHorizon[var];

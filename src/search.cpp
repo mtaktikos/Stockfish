@@ -301,10 +301,12 @@ void Thread::search() {
   if (mainThread)
   {
 
-      int rootComplexity;
-      Eval::evaluate(rootPos, &rootComplexity);
-
-      mainThread->complexity = std::min(1.03 + (rootComplexity - 241) / 1552.0, 1.45);
+      if (!rootPos.checkers())
+      {
+          int rootComplexity;
+          Eval::evaluate(rootPos, &rootComplexity);
+          mainThread->complexity = std::min(1.03 + (rootComplexity - 241) / 1552.0, 1.45);
+      }
 
       if (mainThread->bestPreviousScore == VALUE_INFINITE)
           for (int i = 0; i < 4; ++i)
@@ -885,7 +887,7 @@ namespace {
         &&  ss->staticEval >= beta - 20 * depth - improvement / 13 + 253 + complexity / 25
         && !excludedMove
         &&  pos.non_pawn_material(us)
-        && (ss->ply >= thisThread->nmpMinPly || us != thisThread->nmpColor))
+        && (ss->ply >= thisThread->nmpMinPly))
     {
         assert(eval - beta >= 0);
 
@@ -913,9 +915,8 @@ namespace {
             assert(!thisThread->nmpMinPly); // Recursive verification is not allowed
 
             // Do verification search at high depths, with null move pruning disabled
-            // for us, until ply exceeds nmpMinPly.
+            // until ply exceeds nmpMinPly.
             thisThread->nmpMinPly = ss->ply + 3 * (depth-R) / 4;
-            thisThread->nmpColor = us;
 
             Value v = search<NonPV>(pos, ss, beta-1, beta, depth-R, false);
 
@@ -1111,16 +1112,18 @@ moves_loop: // When in check, search starts here
               {
                   if (depth < 2 - capture)
                       continue;
-                  // don't prune move if a heavy enemy piece (KQR) is under attack after the exchanges
-                  Bitboard leftEnemies = (pos.pieces(~us, QUEEN, ROOK) | pos.pieces(~us, KING)) & occupied;
+                  // Don't prune the move if opp. King/Queen/Rook is attacked by a slider after the exchanges.
+                  // Since in see_ge we don't update occupied when the king recaptures, we also don't prune the
+                  // move when the opp. King gets a discovered slider attack DURING the exchanges.
+                  Bitboard leftEnemies = pos.pieces(~us, ROOK, QUEEN, KING) & occupied;
                   Bitboard attacks = 0;
                   occupied |= to_sq(move);
                   while (leftEnemies && !attacks)
                   {
                       Square sq = pop_lsb(leftEnemies);
-                      attacks |= pos.attackers_to(sq, occupied) & pos.pieces(us) & occupied;
-                      // exclude Queen/Rook(s) which were already threatened before SEE
-                      if (attacks && (sq != pos.square<KING>(~us) && (pos.attackers_to(sq, pos.pieces()) & pos.pieces(us))))
+                      attacks = pos.attackers_to(sq, occupied) & pos.pieces(us) & occupied;
+                      // Exclude Queen/Rook(s) which were already threatened before SEE
+                      if (attacks && sq != pos.square<KING>(~us) && (pos.attackers_to(sq, pos.pieces()) & pos.pieces(us)))
                           attacks = 0;
                   }
                   if (!attacks)
@@ -1291,11 +1294,6 @@ moves_loop: // When in check, search starts here
       if ((ss+1)->cutoffCnt > 3)
           r++;
 
-      // Decrease reduction if move is a killer and we have a good history (~1 Elo)
-      if (move == ss->killers[0]
-          && (*contHist[0])[movedPiece][to_sq(move)] >= 3722)
-          r--;
-
       ss->statScore =  2 * thisThread->mainHistory[us][from_to(move)]
                      + (*contHist[0])[movedPiece][to_sq(move)]
                      + (*contHist[1])[movedPiece][to_sq(move)]
@@ -1342,8 +1340,9 @@ moves_loop: // When in check, search starts here
               if (newDepth > d)
                   value = -search<NonPV>(pos, ss+1, -(alpha+1), -alpha, newDepth, !cutNode);
 
-              int bonus = value > alpha ?  stat_bonus(newDepth)
-                                        : -stat_bonus(newDepth);
+              int bonus = value <= alpha ? -stat_bonus(newDepth)
+                        : value >= beta  ?  stat_bonus(newDepth)
+                                         :  0;
 
               update_continuation_histories(ss, movedPiece, to_sq(move), bonus);
           }
@@ -1376,9 +1375,6 @@ moves_loop: // When in check, search starts here
           if (pos.is_helpmate())
               value = -value;
 #endif
-
-          if (moveCount > 1 && newDepth >= depth && !capture)
-              update_continuation_histories(ss, movedPiece, to_sq(move), -stat_bonus(newDepth));
       }
 
       // Step 19. Undo move
@@ -1452,15 +1448,14 @@ moves_loop: // When in check, search starts here
 
               if (PvNode && value < beta) // Update alpha! Always alpha < beta
               {
-
                   // Reduce other moves if we have found at least one score improvement (~1 Elo)
                   if (   depth > 1
-                      && ((improving && complexity > 971) || (value < (5 * alpha + 75 * beta) / 87) || depth < 6)
+                      && (   (improving && complexity > 971)
+                          || value < (5 * alpha + 75 * beta) / 87
+                          || depth < 6)
                       && beta  <  12535
-                      && value > -12535) {
-                      bool extraReduction = depth > 2 && alpha > -12535 && bestValue != -VALUE_INFINITE && (value - bestValue) > (7 * (beta - alpha)) / 8;
-                      depth -= 1 + extraReduction;
-                  }
+                      && value > -12535)
+                      depth -= 1;
 
                   assert(depth > 0);
                   alpha = value;
