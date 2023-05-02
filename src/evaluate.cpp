@@ -1951,14 +1951,12 @@ Value Eval::evaluate(const Position& pos) {
   assert(!pos.checkers());
 
   Value v;
+#ifdef USE_NNUE
   Value psq = pos.psq_eg_stm();
 
   // We use the much less accurate but faster Classical eval when the NNUE
   // option is set to false. Otherwise we use the NNUE eval unless the
   // PSQ advantage is decisive. (~4 Elo at STC, 1 Elo at LTC)
-#ifndef USE_NNUE
-  bool useClassical = true;
-#else
   bool useClassical = !useNNUE || abs(psq) > 2048;
 
   if (useClassical)
