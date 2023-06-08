@@ -178,7 +178,6 @@ public:
   template<Variant V>
   Value see(Move m, PieceType nextVictim, Square s) const;
 #endif
-  bool see_ge(Move m, Bitboard& occupied, Value threshold = VALUE_ZERO) const;
   bool see_ge(Move m, Value threshold = VALUE_ZERO) const;
 
   // Accessing hash keys
