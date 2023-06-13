@@ -864,7 +864,7 @@ namespace {
         && (ss-1)->statScore < 17329
         &&  eval >= beta
         &&  eval >= ss->staticEval
-        &&  ss->staticEval >= beta - 21 * depth - improvement * 99 / 1300 + 258
+        &&  ss->staticEval >= beta - 21 * depth - improvement / 13 + 258
         && !excludedMove
         &&  pos.non_pawn_material(us)
         && (ss->ply >= thisThread->nmpMinPly))
@@ -907,7 +907,7 @@ namespace {
         }
     }
 
-    // Step 10. If the position doesn't a have ttMove, decrease depth by 2
+    // Step 10. If the position doesn't have a ttMove, decrease depth by 2
     // (or by 4 if the TT entry for the current position was hit and the stored depth is greater than or equal to the current depth).
     // Use qsearch if depth is equal or below zero (~9 Elo)
     if (    PvNode
@@ -1085,9 +1085,28 @@ moves_loop: // When in check, search starts here
                    + captureHistory[movedPiece][to_sq(move)][type_of(pos.piece_on(to_sq(move)))] / 7 < alpha)
                   continue;
 
+              Bitboard occupied;
               // SEE based pruning (~11 Elo)
-              if (!pos.see_ge(move, Value(-205) * depth))
-                      continue;
+              if (!pos.see_ge(move, occupied, Value(-205) * depth))
+              {
+                 if (depth < 2 - capture)
+                    continue;
+                 // Don't prune the move if opponent Queen/Rook is under discovered attack after the exchanges
+                 // Don't prune the move if opponent King is under discovered attack after or during the exchanges
+                 Bitboard leftEnemies = (pos.pieces(~us, KING, QUEEN, ROOK)) & occupied;
+                 Bitboard attacks = 0;
+                 occupied |= to_sq(move);
+                 while (leftEnemies && !attacks)
+                 {
+                      Square sq = pop_lsb(leftEnemies);
+                      attacks |= pos.attackers_to(sq, occupied) & pos.pieces(us) & occupied;
+                      // don't consider pieces which were already threatened/hanging before SEE exchanges
+                      if (attacks && (sq != pos.square<KING>(~us) && (pos.attackers_to(sq, pos.pieces()) & pos.pieces(us))))
+                         attacks = 0;
+                 }
+                 if (!attacks)
+                    continue;
+              }
           }
           else
           {
@@ -1137,6 +1156,9 @@ moves_loop: // When in check, search starts here
           // then that move is singular and should be extended. To verify this we do
           // a reduced search on all the other moves but the ttMove and if the
           // result is lower than ttValue minus a margin, then we will extend the ttMove.
+          // Depth margin and singularBeta margin are known for having non-linear scaling.
+          // Their values are optimized to time controls of 180+1.8 and longer
+          // so changing them requires tests at this type of time controls.
           if (   !rootNode
               &&  depth >= 4 - (thisThread->completedDepth > 22) + 2 * (PvNode && tte->is_pv())
               &&  move == ttMove
