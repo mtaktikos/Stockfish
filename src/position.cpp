@@ -1359,9 +1359,9 @@ bool Position::gives_check(Move m) const {
       return true;
 
   // Is there a discovered check?
-  if (   (blockers_for_king(~sideToMove) & from)
-      && !aligned(from, to, square<KING>(~sideToMove)))
-      return true;
+  if (blockers_for_king(~sideToMove) & from)
+      return   !aligned(from, to, square<KING>(~sideToMove))
+            || type_of(m) == CASTLING;
 #ifdef GRID
   // Does the piece give check by moving away from king?
   if (   is_grid()
@@ -1399,16 +1399,14 @@ bool Position::gives_check(Move m) const {
   default: //CASTLING
   {
       // Castling is encoded as 'king captures the rook'
-      Square ksq = square<KING>(~sideToMove);
       Square rto = relative_square(sideToMove, to > from ? SQ_F1 : SQ_D1);
 
 #ifdef GRID
       if (is_grid())
-          return   (attacks_bb<ROOK>(rto) & ksq & ~grid_bb(rto))
-                && (attacks_bb<ROOK>(rto, pieces() ^ from ^ to) & ksq);
+          return   (attacks_bb<ROOK>(rto) & square<KING>(~sideToMove) & ~grid_bb(rto))
+                && (attacks_bb<ROOK>(rto, pieces() ^ from ^ to) & square<KING>(~sideToMove));
 #endif
-      return   (attacks_bb<ROOK>(rto) & ksq)
-            && (attacks_bb<ROOK>(rto, pieces() ^ from ^ to) & ksq);
+      return check_squares(ROOK) & rto;
   }
   }
 }
