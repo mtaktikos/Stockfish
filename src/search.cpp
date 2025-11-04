@@ -33,6 +33,7 @@
 #include "timeman.h"
 #include "tt.h"
 #include "uci.h"
+#include "xboard.h"
 #include "syzygy/tbprobe.h"
 #include "nnue/evaluate_nnue.h"
 
@@ -251,6 +252,25 @@ void MainThread::search() {
   // Send again PV info if we have a new best thread
   if (bestThread != this)
       sync_cout << UCI::pv(bestThread->rootPos, bestThread->completedDepth) << sync_endl;
+
+  if (CurrentProtocol == PROTOCOL_XBOARD)
+  {
+      Move bestMove = bestThread->rootMoves[0].pv[0];
+      // Send move only when not in analyze mode and not at game end
+      if (!Limits.infinite && !ponder && rootMoves[0].pv[0] != MOVE_NONE && !Threads.stop)
+      {
+          sync_cout << "move " << UCI::move(bestMove, rootPos.is_chess960()) << sync_endl;
+          if (XBoard::stateMachine->moveAfterSearch)
+          {
+              XBoard::stateMachine->do_move(bestMove);
+              XBoard::stateMachine->moveAfterSearch = false;
+              if (Options["Ponder"] && (   bestThread->rootMoves[0].pv.size() > 1
+                                        || bestThread->rootMoves[0].extract_ponder_from_tt(rootPos)))
+                  XBoard::stateMachine->ponderMove = bestThread->rootMoves[0].pv[1];
+          }
+      }
+      return;
+  }
 
   // Best move could be MOVE_NONE when searching on a terminal position
   sync_cout << "bestmove " << UCI::move(bestThread->rootMoves[0].pv[0], rootPos.is_chess960());

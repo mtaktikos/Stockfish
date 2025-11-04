@@ -32,6 +32,7 @@
 #include "timeman.h"
 #include "tt.h"
 #include "uci.h"
+#include "xboard.h"
 #include "syzygy/tbprobe.h"
 #include "nnue/evaluate_nnue.h"
 
@@ -39,67 +40,65 @@ using namespace std;
 
 namespace Stockfish {
 
-namespace {
-
-  // FEN string for the initial position in standard chess
-  const string StartFENs[SUBVARIANT_NB] = {
-  "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+// FEN string for the initial position in standard chess
+const string StartFENs[SUBVARIANT_NB] = {
+"rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
 #ifdef ANTI
-  "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w - - 0 1",
+"rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w - - 0 1",
 #endif
 #ifdef ATOMIC
-  "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+"rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
 #endif
 #ifdef CRAZYHOUSE
-  "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR[] w KQkq - 0 1",
+"rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR[] w KQkq - 0 1",
 #endif
 #ifdef EXTINCTION
-  "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+"rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
 #endif
 #ifdef GRID
-  "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+"rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
 #endif
 #ifdef HORDE
-  "rnbqkbnr/pppppppp/8/1PP2PP1/PPPPPPPP/PPPPPPPP/PPPPPPPP/PPPPPPPP w kq - 0 1",
+"rnbqkbnr/pppppppp/8/1PP2PP1/PPPPPPPP/PPPPPPPP/PPPPPPPP/PPPPPPPP w kq - 0 1",
 #endif
 #ifdef KOTH
-  "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+"rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
 #endif
 #ifdef LOSERS
-  "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+"rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
 #endif
 #ifdef RACE
-  "8/8/8/8/8/8/krbnNBRK/qrbnNBRQ w - - 0 1",
+"8/8/8/8/8/8/krbnNBRK/qrbnNBRQ w - - 0 1",
 #endif
 #ifdef THREECHECK
-  "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 3+3 0 1",
+"rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 3+3 0 1",
 #endif
 #ifdef TWOKINGS
-  "rnbqkknr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKKNR w KQkq - 0 1",
+"rnbqkknr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKKNR w KQkq - 0 1",
 #endif
 #ifdef CAPTUREANYTHING
-  "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w - - 0 1",
+"rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w - - 0 1",
 #endif
 #ifdef RECYCLE
-  "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR[] w - - 0 1",
+"rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR[] w - - 0 1",
 #endif
 #ifdef ANTIHELPMATE
-  "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+"rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
 #endif
 #ifdef HELPMATE
-  "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+"rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
 #endif
 #ifdef GIVEAWAY
-  "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+"rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
 #endif
 #ifdef SUICIDE
-  "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w - - 0 1",
+"rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w - - 0 1",
 #endif
 #ifdef BUGHOUSE
-  "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR[] w KQkq - 0 1",
+"rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR[] w KQkq - 0 1",
 #endif
 #ifdef DISPLACEDGRID
-  "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+"rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
 #endif
 #ifdef LOOP
   "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR[] w KQkq - 0 1",
@@ -114,13 +113,14 @@ namespace {
   "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
 #endif
 #ifdef SLIPPEDGRID
-  "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+"rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
 #endif
 #ifdef TWOKINGSSYMMETRIC
-  "rnbqkknr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKKNR w KQkq - 0 1",
+"rnbqkknr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKKNR w KQkq - 0 1",
 #endif
-  };
+};
 
+namespace {
 
   // position() is called when the engine receives the "position" UCI command.
   // It sets up the position that is described in the given FEN string ("fen") or
@@ -332,6 +332,9 @@ void UCI::loop(int argc, char* argv[]) {
   for (int i = 1; i < argc; ++i)
       cmd += std::string(argv[i]) + " ";
 
+  // XBoard state machine
+  XBoard::stateMachine = new XBoard::StateMachine(pos, states);
+
   do {
       if (argc == 1 && !getline(cin, cmd)) // Wait for an input or an end-of-file (EOF) indication
           cmd = "quit";
@@ -352,10 +355,19 @@ void UCI::loop(int argc, char* argv[]) {
       else if (token == "ponderhit")
           Threads.main()->ponder = false; // Switch to the normal search
 
-      else if (token == "uci")
-          sync_cout << "id name " << engine_info(true)
-                    << "\n"       << Options
-                    << "\nuciok"  << sync_endl;
+      else if (token == "uci" || token == "xboard")
+      {
+          CurrentProtocol = token == "uci" ? PROTOCOL_UCI : PROTOCOL_XBOARD;
+          if (token == "uci")
+              sync_cout << "id name " << engine_info(true)
+                        << "\n"       << Options
+                        << "\nuciok"  << sync_endl;
+          // Allow to enforce protocol at startup
+          argc = 1;
+      }
+
+      else if (CurrentProtocol == PROTOCOL_XBOARD)
+          XBoard::stateMachine->process_command(token, is);
 
       else if (token == "setoption")  setoption(is);
       else if (token == "go")         go(pos, is, states);
@@ -391,6 +403,8 @@ void UCI::loop(int argc, char* argv[]) {
           sync_cout << "Unknown command: '" << cmd << "'. Type help for more information." << sync_endl;
 
   } while (token != "quit" && argc == 1); // The command-line arguments are one-shot
+
+  delete XBoard::stateMachine;
 }
 
 
@@ -498,4 +512,7 @@ Variant UCI::variant_from_name(const string& str) {
 
   return CHESS_VARIANT;
 }
+
+Protocol CurrentProtocol = PROTOCOL_UCI; // Global object
+
 } // namespace Stockfish

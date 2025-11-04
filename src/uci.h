@@ -90,6 +90,14 @@ Variant variant_from_name(const std::string& str);
 } // namespace UCI
 
 extern UCI::OptionsMap Options;
+extern const std::string StartFENs[SUBVARIANT_NB];
+
+enum Protocol {
+  PROTOCOL_UCI,
+  PROTOCOL_XBOARD,
+};
+
+extern Protocol CurrentProtocol;
 
 } // namespace Stockfish
 
