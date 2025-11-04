@@ -138,8 +138,13 @@ namespace {
     constexpr Direction UpLeft   = (Us == WHITE ? NORTH_WEST : SOUTH_EAST);
 
     const Bitboard emptySquares = ~pos.pieces();
-    const Bitboard enemies      =  Type == EVASIONS ? pos.checkers()
-                                                    : pos.pieces(Them);
+    Bitboard enemies      =  Type == EVASIONS ? pos.checkers()
+                                              : pos.pieces(Them);
+#ifdef CAPTUREANYTHING
+    if constexpr (V == CAPTUREANYTHING_VARIANT)
+        if (Type == CAPTURES || Type == NON_EVASIONS)
+            enemies |= pos.pieces(Us) & ~pos.pieces(Us, KING);
+#endif
 
     Bitboard pawnsOn7    = pos.pieces(Us, PAWN) &  TRank7BB;
     Bitboard pawnsNotOn7 = pos.pieces(Us, PAWN) & ~TRank7BB;
@@ -423,6 +428,11 @@ namespace {
                : Type == NON_EVASIONS ? ~pos.pieces( Us)
                : Type == CAPTURES     ?  pos.pieces(~Us)
                                       : ~pos.pieces(   ); // QUIETS || QUIET_CHECKS
+#ifdef CAPTUREANYTHING
+        if constexpr (V == CAPTUREANYTHING_VARIANT)
+            if (Type == CAPTURES || Type == NON_EVASIONS)
+                target |= pos.pieces(Us) & ~pos.pieces(Us, KING);
+#endif
 #ifdef ANTI
         if (V == ANTI_VARIANT && pos.can_capture())
             target &= pos.pieces(~Us);
@@ -509,6 +519,11 @@ namespace {
     if (!Checks || pos.blockers_for_king(~Us) & ksq)
     {
         Bitboard b = attacks_bb<KING>(ksq) & (Type == EVASIONS ? ~pos.pieces(Us) : target);
+#ifdef CAPTUREANYTHING
+        if constexpr (V == CAPTUREANYTHING_VARIANT)
+            if (Type == EVASIONS)
+                b |= attacks_bb<KING>(ksq) & pos.pieces(Us) & ~pos.pieces(Us, KING);
+#endif
         if (Checks)
             b &= ~attacks_bb<QUEEN>(pos.square<KING>(~Us));
 #ifdef RACE
@@ -632,6 +647,11 @@ ExtMove* generate(const Position& pos, ExtMove* moveList) {
   case TWOKINGS_VARIANT:
       return us == WHITE ? generate_all<TWOKINGS_VARIANT, WHITE, Type>(pos, moveList)
                          : generate_all<TWOKINGS_VARIANT, BLACK, Type>(pos, moveList);
+#endif
+#ifdef CAPTUREANYTHING
+  case CAPTUREANYTHING_VARIANT:
+      return us == WHITE ? generate_all<CAPTUREANYTHING_VARIANT, WHITE, Type>(pos, moveList)
+                         : generate_all<CAPTUREANYTHING_VARIANT, BLACK, Type>(pos, moveList);
 #endif
   default:
   return us == WHITE ? generate_all<CHESS_VARIANT, WHITE, Type>(pos, moveList)
