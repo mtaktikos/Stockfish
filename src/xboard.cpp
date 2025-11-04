@@ -49,6 +49,7 @@ namespace XBoard {
 
   void StateMachine::go(Search::LimitsType searchLimits, bool ponder) {
 
+    Threads.stop = false;  // Ensure stop flag is cleared
     searchLimits.startTime = now(); // As early as possible!
 
     Threads.start_thinking(pos, states, searchLimits, ponder);
@@ -243,7 +244,6 @@ void StateMachine::process_command(std::string token, std::istringstream& is) {
   }
   else if (token == "go")
   {
-      stop();
       playColor = pos.side_to_move();
       go(limits);
       moveAfterSearch = true;

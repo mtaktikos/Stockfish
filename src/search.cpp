@@ -257,7 +257,7 @@ void MainThread::search() {
   {
       Move bestMove = bestThread->rootMoves[0].pv[0];
       // Send move only when not in analyze mode and not at game end
-      if (!Limits.infinite && !ponder && rootMoves[0].pv[0] != MOVE_NONE && !Threads.stop)
+      if (!Limits.infinite && !ponder && rootMoves[0].pv[0] != MOVE_NONE)
       {
           sync_cout << "move " << UCI::move(bestMove, rootPos.is_chess960()) << sync_endl;
           if (XBoard::stateMachine->moveAfterSearch)
