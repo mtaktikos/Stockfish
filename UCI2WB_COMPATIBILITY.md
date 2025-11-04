@@ -89,13 +89,27 @@ If the variant is not recognized:
 
 ## Testing
 
-Run the test script to verify functionality:
+To verify the variant is working correctly, run these commands:
 
 ```bash
-bash test_captureanything.sh
+cd src
+echo -e "uci\nquit" | ./stockfish | grep "captureanything"
 ```
 
-All tests should pass, confirming:
+You should see `var captureanything` in the UCI_Variant option list.
+
+To test functionality:
+
+```bash
+cd src
+echo -e "uci\nsetoption name UCI_Variant value captureanything\nposition startpos\ngo depth 1\nquit" | ./stockfish
+```
+
+You should see:
+- `info string variant captureanything startpos ...`
+- `bestmove` followed by a legal move
+
+This confirms:
 - ✓ Variant is listed in UCI options
 - ✓ Variant selection is acknowledged
 - ✓ Engine can play in the variant
@@ -103,7 +117,8 @@ All tests should pass, confirming:
 
 ## References
 
-- Implementation details: `IMPLEMENTATION_SUMMARY.md`
-- Test results: `CAPTUREANYTHING_TESTS.md`
+- Implementation details: See `IMPLEMENTATION_SUMMARY.md` (existing documentation)
+- Test results: See `CAPTUREANYTHING_TESTS.md` (existing test documentation)
+- Verification status: See `VARIANT_UCI_STATUS.md` (implementation verification)
 - UCI Protocol: http://wbec-ridderkerk.nl/html/UCIProtocol.html
 - WinBoard/XBoard: https://www.gnu.org/software/xboard/
