@@ -151,6 +151,9 @@ enum Variant {
 #ifdef TWOKINGS
   TWOKINGS_VARIANT,
 #endif
+#ifdef CAPTUREANYTHING
+  CAPTUREANYTHING_VARIANT,
+#endif
   VARIANT_NB,
   LAST_VARIANT = VARIANT_NB - 1,
   //subvariants
@@ -229,6 +232,9 @@ static std::vector<std::string> variants = {
 #endif
 #ifdef TWOKINGS
 "twokings",
+#endif
+#ifdef CAPTUREANYTHING
+"captureanything",
 #endif
 //subvariants
 #ifdef ANTIHELPMATE
