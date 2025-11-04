@@ -43,15 +43,16 @@ When using UCI2WB as a UCI-to-WinBoard adapter:
 To verify the variant is working:
 
 ```bash
-echo -e "uci\nsetoption name UCI_Variant value captureanything\nposition startpos\nd\nquit" | ./stockfish
+echo -e "uci\nsetoption name UCI_Variant value captureanything\nposition startpos\nisready\nquit" | ./stockfish
 ```
 
 Look for the output:
 ```
 info string variant captureanything startpos rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w - - 0 1
+readyok
 ```
 
-Note the FEN has no castling rights (`w - -`) which is correct for this variant.
+Note: The starting FEN has no castling rights (`w - -`) which is correct for this variant.
 
 ## Variant Rules
 
@@ -115,10 +116,13 @@ This confirms:
 - ✓ Engine can play in the variant
 - ✓ Correct starting position (no castling rights)
 
-## References
+## Additional Resources
 
-- Implementation details: See `IMPLEMENTATION_SUMMARY.md` (existing documentation)
-- Test results: See `CAPTUREANYTHING_TESTS.md` (existing test documentation)
-- Verification status: See `VARIANT_UCI_STATUS.md` (implementation verification)
+For further information about this variant implementation, see:
+- `IMPLEMENTATION_SUMMARY.md` - Detailed implementation notes
+- `CAPTUREANYTHING_TESTS.md` - Comprehensive test results
+- `VARIANT_UCI_STATUS.md` - UCI implementation verification
+
+External references:
 - UCI Protocol: http://wbec-ridderkerk.nl/html/UCIProtocol.html
 - WinBoard/XBoard: https://www.gnu.org/software/xboard/

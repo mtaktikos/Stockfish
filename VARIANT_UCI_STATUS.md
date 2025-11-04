@@ -9,20 +9,23 @@
 ### 1. UCI Option Registration
 ```bash
 $ echo "uci" | ./stockfish | grep "UCI_Variant"
-option name UCI_Variant type combo default chess var chess var antichess ... var captureanything ...
+option name UCI_Variant type combo default chess var chess var antichess var atomic var crazyhouse var extinction var grid var horde var kingofthehill var losers var racingkings var 3check var twokings var captureanything var recycle ...
 ```
-**Status**: ✅ PASS - `captureanything` appears in the UCI_Variant combo option
+**Status**: ✅ PASS - `captureanything` appears in the UCI_Variant combo option (shown above, additional variants omitted for brevity)
 
 ### 2. Variant Selection
 ```bash
-$ echo "setoption name UCI_Variant value captureanything" | ./stockfish
+$ echo -e "uci\nsetoption name UCI_Variant value captureanything\nisready" | ./stockfish
+...
 info string variant captureanything startpos rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w - - 0 1
+readyok
 ```
 **Status**: ✅ PASS - Engine acknowledges and applies the variant
 
 ### 3. Functionality Test
 ```bash
-$ echo "go depth 1" | ./stockfish
+$ echo -e "uci\nsetoption name UCI_Variant value captureanything\nposition startpos\ngo depth 1\nquit" | ./stockfish
+...
 bestmove a2a3
 ```
 **Status**: ✅ PASS - Engine can play moves in the variant
