@@ -905,7 +905,11 @@ inline bool Position::is_suicide() const {
 
 #ifdef CRAZYHOUSE
 inline bool Position::is_house() const {
+#ifdef RECYCLE
+  return var == CRAZYHOUSE_VARIANT || var == RECYCLE_VARIANT;
+#else
   return var == CRAZYHOUSE_VARIANT;
+#endif
 }
 
 template<PieceType Pt> inline int Position::count_in_hand(Color c) const {

@@ -1199,6 +1199,15 @@ bool Position::pseudo_legal(const Move m) const {
       }
       else
 #endif
+#ifdef RECYCLE
+      if (var == RECYCLE_VARIANT)
+      {
+          // Allow self-capture except for kings
+          if (!capture(m) || type_of(piece_on(to)) == KING)
+              return false;
+      }
+      else
+#endif
       return false;
   }
 
@@ -1226,6 +1235,9 @@ bool Position::pseudo_legal(const Move m) const {
       if (   !(pawn_attacks_bb(us, from) & pieces(~us) & to) // Not a capture
 #ifdef CAPTUREANYTHING
           && !(var == CAPTUREANYTHING_VARIANT && (pawn_attacks_bb(us, from) & pieces(us) & ~pieces(us, KING) & to))
+#endif
+#ifdef RECYCLE
+          && !(var == RECYCLE_VARIANT && (pawn_attacks_bb(us, from) & pieces(us) & ~pieces(us, KING) & to))
 #endif
           && !((from + pawn_push(us) == to) && empty(to))       // Not a single push
           && !(   (from + 2 * pawn_push(us) == to)              // Not a double push
@@ -2299,6 +2311,11 @@ bool Position::see_ge(Move m, Bitboard& occupied, Value threshold) const {
 #ifdef CAPTUREANYTHING
   // Self-captures are evaluated as negative
   if (var == CAPTUREANYTHING_VARIANT && color_of(piece_on(to)) == color_of(piece_on(from)))
+      swap = -PieceValue[var][MG][piece_on(to)] - threshold;
+#endif
+#ifdef RECYCLE
+  // Self-captures are evaluated as negative
+  if (var == RECYCLE_VARIANT && color_of(piece_on(to)) == color_of(piece_on(from)))
       swap = -PieceValue[var][MG][piece_on(to)] - threshold;
 #endif
   if (swap < 0)
