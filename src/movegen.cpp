@@ -145,6 +145,11 @@ namespace {
         if (Type == CAPTURES || Type == NON_EVASIONS)
             enemies |= pos.pieces(Us) & ~pos.pieces(Us, KING);
 #endif
+#ifdef RECYCLE
+    if constexpr (V == RECYCLE_VARIANT)
+        if (Type == CAPTURES || Type == NON_EVASIONS)
+            enemies |= pos.pieces(Us) & ~pos.pieces(Us, KING);
+#endif
 
     Bitboard pawnsOn7    = pos.pieces(Us, PAWN) &  TRank7BB;
     Bitboard pawnsNotOn7 = pos.pieces(Us, PAWN) & ~TRank7BB;
@@ -433,6 +438,11 @@ namespace {
             if (Type == CAPTURES || Type == NON_EVASIONS)
                 target |= pos.pieces(Us) & ~pos.pieces(Us, KING);
 #endif
+#ifdef RECYCLE
+        if constexpr (V == RECYCLE_VARIANT)
+            if (Type == CAPTURES || Type == NON_EVASIONS)
+                target |= pos.pieces(Us) & ~pos.pieces(Us, KING);
+#endif
 #ifdef ANTI
         if (V == ANTI_VARIANT && pos.can_capture())
             target &= pos.pieces(~Us);
@@ -479,6 +489,20 @@ namespace {
             moveList = generate_drops<Us, KING, Checks>(pos, moveList, b);
 #endif
     }
+#ifdef RECYCLE
+    if (V == RECYCLE_VARIANT && Type != CAPTURES && pos.count_in_hand<ALL_PIECES>(Us))
+    {
+        if (Type == EVASIONS)
+            target = between_bb(ksq, lsb(pos.checkers()));
+        Bitboard b = Type == EVASIONS ? target ^ pos.checkers() :
+                     Type == NON_EVASIONS ? target ^ pos.pieces(~Us) : target;
+        moveList = generate_drops<Us,   PAWN, Checks>(pos, moveList, b & ~(Rank1BB | Rank8BB));
+        moveList = generate_drops<Us, KNIGHT, Checks>(pos, moveList, b);
+        moveList = generate_drops<Us, BISHOP, Checks>(pos, moveList, b);
+        moveList = generate_drops<Us,   ROOK, Checks>(pos, moveList, b);
+        moveList = generate_drops<Us,  QUEEN, Checks>(pos, moveList, b);
+    }
+#endif
 #ifdef PLACEMENT
     if (pos.is_placement() && pos.count_in_hand<ALL_PIECES>(Us))
         return moveList;
@@ -521,6 +545,11 @@ namespace {
         Bitboard b = attacks_bb<KING>(ksq) & (Type == EVASIONS ? ~pos.pieces(Us) : target);
 #ifdef CAPTUREANYTHING
         if constexpr (V == CAPTUREANYTHING_VARIANT)
+            if (Type == EVASIONS)
+                b |= attacks_bb<KING>(ksq) & pos.pieces(Us) & ~pos.pieces(Us, KING);
+#endif
+#ifdef RECYCLE
+        if constexpr (V == RECYCLE_VARIANT)
             if (Type == EVASIONS)
                 b |= attacks_bb<KING>(ksq) & pos.pieces(Us) & ~pos.pieces(Us, KING);
 #endif
@@ -652,6 +681,11 @@ ExtMove* generate(const Position& pos, ExtMove* moveList) {
   case CAPTUREANYTHING_VARIANT:
       return us == WHITE ? generate_all<CAPTUREANYTHING_VARIANT, WHITE, Type>(pos, moveList)
                          : generate_all<CAPTUREANYTHING_VARIANT, BLACK, Type>(pos, moveList);
+#endif
+#ifdef RECYCLE
+  case RECYCLE_VARIANT:
+      return us == WHITE ? generate_all<RECYCLE_VARIANT, WHITE, Type>(pos, moveList)
+                         : generate_all<RECYCLE_VARIANT, BLACK, Type>(pos, moveList);
 #endif
   default:
   return us == WHITE ? generate_all<CHESS_VARIANT, WHITE, Type>(pos, moveList)

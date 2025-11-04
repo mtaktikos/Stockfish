@@ -154,6 +154,9 @@ enum Variant {
 #ifdef CAPTUREANYTHING
   CAPTUREANYTHING_VARIANT,
 #endif
+#ifdef RECYCLE
+  RECYCLE_VARIANT,
+#endif
   VARIANT_NB,
   LAST_VARIANT = VARIANT_NB - 1,
   //subvariants
@@ -235,6 +238,9 @@ static std::vector<std::string> variants = {
 #endif
 #ifdef CAPTUREANYTHING
 "captureanything",
+#endif
+#ifdef RECYCLE
+"recycle",
 #endif
 //subvariants
 #ifdef ANTIHELPMATE
